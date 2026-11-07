@@ -277,7 +277,7 @@ export default function App() {
           'Authorization': `Bearer ${import.meta.env.VITE_GROK_API_KEY}`
         },
         body: JSON.stringify({
-          model: 'grok-2-latest',
+          model: 'grok-4-latest',
           messages: [{ role: 'user', content: prompt }],
           temperature: 0.3
         })
