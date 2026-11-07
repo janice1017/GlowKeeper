@@ -1,10 +1,10 @@
 import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { 
   Sparkles, Plus, Search, Package, Trash2, Edit3, Sun, Moon, X, 
-  Camera, Tag, Cloud, ArrowUpDown
+  Camera, Tag, Cloud, ArrowUpDown, ChevronUp, ChevronDown
 } from 'lucide-react';
 import { initializeApp } from 'firebase/app';
-import { getFirestore, collection, onSnapshot, addDoc, updateDoc, deleteDoc, doc, setDoc } from 'firebase/firestore';
+import { getFirestore, collection, onSnapshot, addDoc, updateDoc, deleteDoc, doc } from 'firebase/firestore';
 
 const firebaseConfig = {
   apiKey: "AIzaSyAR655DtBH7dpgq-9Zq8U6F8ONI5_fc234",
@@ -43,15 +43,14 @@ export default function App() {
     name: '', brand: '', imageUrl: '', category: 'Serum 精華', price: '',
     size: '', purchaseLocation: '', purchaseDate: new Date().toISOString().split('T')[0],
     expiryDate: '', status: 'unopened', isMultiPack: false, totalQuantity: 1,
-    remainingQuantity: 1, unit: '塊', routineStage: 'AM/PM', notes: '', tagsInput: ''
+    remainingQuantity: 1, unit: '塊', routineStage: 'AM/PM', notes: '', tagsInput: '', stepOrder: 99
   };
 
   const [formData, setFormData] = useState(initialFormState);
   const presetTags = ['#敏感肌必備', '#空瓶回購', '#平價替代', '#抗衰老', '#急救修復', '#控油祛痘', '#美白提亮', '#保濕補水'];
-  const presetLocations = ['專櫃', '莎莎', '卓悅', 'Sephora', '松本清', 'Donki', '官網', 'Olive Young'];
+  const presetLocations = ['專櫃', '莎莎', 'HKTVMall', 'Sephora', '松本清', 'Donki', '官網', 'Olive Young', 'Green Price'];
   const categories = ['Cleanser 洗面', 'Toner 爽膚水', 'Serum 精華', 'Moisturizer 乳液面霜', 'Eye Cream 眼霜', 'Mask 面膜', 'Sunscreen 防曬', 'Hair 頭髮護理', 'Bodycare 身體護理', 'Special 特別護理'];
 
-  // Real-time sync with Firebase
   useEffect(() => {
     const unsubscribe = onSnapshot(collection(db, 'items'), (snapshot) => {
       const data = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
@@ -92,8 +91,6 @@ export default function App() {
     if (!file) return;
     const previewUrl = URL.createObjectURL(file);
     setScanPreview(previewUrl);
-    setFormData(prev => ({ ...prev, imageUrl: previewUrl }));
-
     const reader = new FileReader();
     reader.onloadend = () => {
       const base64 = reader.result;
@@ -235,6 +232,26 @@ export default function App() {
     }
   };
 
+  const moveRoutineItem = async (itemId, direction) => {
+    const currentItems = [...routineItems];
+    const index = currentItems.findIndex(i => i.id === itemId);
+    if (index === -1) return;
+    const newIndex = direction === 'up' ? index - 1 : index + 1;
+    if (newIndex < 0 || newIndex >= currentItems.length) return;
+
+    const current = currentItems[index];
+    const target = currentItems[newIndex];
+    const currentOrder = current.stepOrder || index;
+    const targetOrder = target.stepOrder || newIndex;
+
+    try {
+      await updateDoc(doc(db, 'items', current.id), { stepOrder: targetOrder });
+      await updateDoc(doc(db, 'items', target.id), { stepOrder: currentOrder });
+    } catch (err) {
+      console.error(err);
+    }
+  };
+
   const getExpiryDetails = (expiryDateStr) => {
     if (!expiryDateStr) return { days: 999, status: 'normal', label: '' };
     const today = new Date(); today.setHours(0,0,0,0);
@@ -270,7 +287,9 @@ export default function App() {
   }, [items, searchQuery, filterStatus, filterCategory, filterTag, sortField, sortOrder]);
 
   const routineItems = useMemo(() => {
-    return items.filter(item => item.status === 'in_use' && (item.routineStage === routineTime || item.routineStage === 'AM/PM')).sort((a, b) => (a.stepOrder || 99) - (b.stepOrder || 99));
+    return items
+      .filter(item => item.status === 'in_use' && (item.routineStage === routineTime || item.routineStage === 'AM/PM'))
+      .sort((a, b) => (a.stepOrder || 99) - (b.stepOrder || 99));
   }, [items, routineTime]);
 
   if (loading) {
@@ -335,7 +354,6 @@ export default function App() {
                 <table className="w-full text-left text-xs">
                   <thead className="bg-stone-50 border-b text-stone-500">
                     <tr>
-                      <th className="py-3 px-4 w-16">圖片</th>
                       <th className="py-3 px-4"><button onClick={() => { setSortField('name'); setSortOrder(p => p === 'asc' ? 'desc' : 'asc'); }} className="flex items-center gap-1">產品 <ArrowUpDown className="h-3 w-3" /></button></th>
                       <th className="py-3 px-4">類別</th>
                       <th className="py-3 px-4">狀態</th>
@@ -346,18 +364,11 @@ export default function App() {
                   </thead>
                   <tbody className="divide-y">
                     {filteredItems.length === 0 ? (
-                      <tr><td colSpan="7" className="py-12 text-center text-stone-400"><Package className="h-8 w-8 mx-auto mb-2 opacity-40" /><p>沒有找到護膚品</p></td></tr>
+                      <tr><td colSpan="6" className="py-12 text-center text-stone-400"><Package className="h-8 w-8 mx-auto mb-2 opacity-40" /><p>沒有找到護膚品</p></td></tr>
                     ) : filteredItems.map(item => {
                       const expiry = getExpiryDetails(item.expiryDate);
                       return (
                         <tr key={item.id} className="hover:bg-stone-50">
-                          <td className="py-3 px-4">
-                            {item.imageUrl ? (
-                              <img src={item.imageUrl} alt={item.name} className="h-12 w-12 object-cover rounded-xl border" />
-                            ) : (
-                              <div className="h-12 w-12 rounded-xl bg-stone-100 flex items-center justify-center text-stone-300"><Package className="h-5 w-5" /></div>
-                            )}
-                          </td>
                           <td className="py-3 px-4">
                             <div onClick={() => setSelectedProduct(item)} className="font-semibold cursor-pointer hover:text-emerald-800">{item.name}</div>
                             <div className="text-[11px] text-stone-400">{item.brand}</div>
@@ -372,10 +383,10 @@ export default function App() {
                           <td className="py-3 px-4">
                             {item.isMultiPack ? (
                               <div className="flex flex-col gap-1">
-                                <span>{item.remainingQuantity}/{item.totalQuantity} {item.unit}</span>
-                                {item.remainingQuantity > 0 && <button onClick={() => handleDecrementQuantity(item.id)} className="text-[10px] bg-emerald-50 text-emerald-800 px-2 py-0.5 rounded border">-1</button>}
+                                <span>{item.remainingQuantity}/{item.totalQuantity}</span>
+                                {item.remainingQuantity > 0 && <button onClick={() => handleDecrementQuantity(item.id)} className="text-[10px] bg-emerald-50 text-emerald-800 px-2 py-0.5 rounded border w-fit">-1</button>}
                               </div>
-                            ) : <span>1 {item.unit}</span>}
+                            ) : <span>1</span>}
                           </td>
                           <td className="py-3 px-4">
                             <div>{item.expiryDate || '-'}</div>
@@ -398,7 +409,7 @@ export default function App() {
         {activeTab === 'routine' && (
           <div className="max-w-4xl mx-auto space-y-6">
             <div className="flex items-center justify-between bg-white p-4 rounded-3xl border shadow-sm">
-              <div><h2 className="text-lg font-medium">每日護膚流程</h2><p className="text-xs text-stone-500">使用中護膚品</p></div>
+              <div><h2 className="text-lg font-medium">每日護膚流程</h2><p className="text-xs text-stone-500">使用中護膚品 · 可調整順序</p></div>
               <div className="flex bg-stone-100 p-1 rounded-2xl">
                 <button onClick={() => setRoutineTime('AM')} className={`flex items-center gap-1.5 px-4 py-2 rounded-xl text-xs ${routineTime === 'AM' ? 'bg-amber-100 text-amber-900' : ''}`}><Sun className="h-4 w-4" />早晨</button>
                 <button onClick={() => setRoutineTime('PM')} className={`flex items-center gap-1.5 px-4 py-2 rounded-xl text-xs ${routineTime === 'PM' ? 'bg-indigo-100 text-indigo-950' : ''}`}><Moon className="h-4 w-4" />晚間</button>
@@ -408,8 +419,8 @@ export default function App() {
               {routineItems.length === 0 ? (
                 <div className="bg-white p-12 text-center rounded-3xl border text-stone-400"><Sun className="h-8 w-8 mx-auto mb-2 opacity-40" /><p>尚無使用中護膚品</p></div>
               ) : routineItems.map((item, index) => (
-                <div key={item.id} onClick={() => setSelectedProduct(item)} className="p-4 rounded-3xl border bg-white shadow-sm flex items-center justify-between hover:border-emerald-800/40 cursor-pointer">
-                  <div className="flex items-center space-x-4">
+                <div key={item.id} className="p-4 rounded-3xl border bg-white shadow-sm flex items-center justify-between hover:border-emerald-800/40">
+                  <div className="flex items-center space-x-4 cursor-pointer" onClick={() => setSelectedProduct(item)}>
                     {item.imageUrl ? (
                       <img src={item.imageUrl} alt={item.name} className="h-14 w-14 object-cover rounded-2xl border shrink-0" />
                     ) : (
@@ -421,7 +432,10 @@ export default function App() {
                       <p className="text-xs text-stone-500">{item.brand}</p>
                     </div>
                   </div>
-                  {item.size && <span className="text-[11px] text-stone-400 bg-stone-50 px-2.5 py-1 rounded-xl">{item.size}</span>}
+                  <div className="flex items-center gap-1">
+                    <button onClick={() => moveRoutineItem(item.id, 'up')} disabled={index === 0} className="p-1.5 text-stone-400 hover:text-stone-700 disabled:opacity-30"><ChevronUp className="h-4 w-4" /></button>
+                    <button onClick={() => moveRoutineItem(item.id, 'down')} disabled={index === routineItems.length - 1} className="p-1.5 text-stone-400 hover:text-stone-700 disabled:opacity-30"><ChevronDown className="h-4 w-4" /></button>
+                  </div>
                 </div>
               ))}
             </div>
