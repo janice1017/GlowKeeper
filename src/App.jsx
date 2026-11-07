@@ -1,59 +1,26 @@
 import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { 
   Sparkles, Plus, Search, Package, Trash2, Edit3, Sun, Moon, X, 
-  Camera, RefreshCw, Tag, Cloud, Download, Upload, Copy, CheckCheck, ArrowUpDown
+  Camera, Tag, Cloud, ArrowUpDown
 } from 'lucide-react';
+import { initializeApp } from 'firebase/app';
+import { getFirestore, collection, onSnapshot, addDoc, updateDoc, deleteDoc, doc, setDoc } from 'firebase/firestore';
+
+const firebaseConfig = {
+  apiKey: "AIzaSyAR655DtBH7dpgq-9Zq8U6F8ONI5_fc234",
+  authDomain: "glowkeeper-492cf.firebaseapp.com",
+  projectId: "glowkeeper-492cf",
+  storageBucket: "glowkeeper-492cf.firebasestorage.app",
+  messagingSenderId: "1071240274402",
+  appId: "1:1071240274402:web:db8ea9baf173b0486719bb"
+};
+
+const app = initializeApp(firebaseConfig);
+const db = getFirestore(app);
 
 export default function App() {
-  const [items, setItems] = useState(() => {
-    const saved = localStorage.getItem('glowkeeper_minimal_items');
-    if (saved) {
-      try { return JSON.parse(saved); } catch (e) { console.error(e); }
-    }
-    return [
-      {
-        id: '1',
-        name: '潤澤修護玻尿酸精華',
-        brand: 'Aesop',
-        imageUrl: '',
-        category: 'Serum 精華',
-        price: 450,
-        size: '50ml',
-        purchaseLocation: '專櫃',
-        purchaseDate: '2025-01-10',
-        expiryDate: '2026-12-31',
-        status: 'in_use',
-        isMultiPack: false,
-        totalQuantity: 1,
-        remainingQuantity: 1,
-        unit: '支',
-        routineStage: 'AM/PM',
-        notes: '深層補水，質地清爽好吸收。',
-        tags: ['#保濕急救', '#敏弱肌必備']
-      },
-      {
-        id: '2',
-        name: '積雪草鎮定舒緩面膜',
-        brand: 'VT Cosmetics',
-        imageUrl: '',
-        category: 'Mask 面膜',
-        price: 120,
-        size: '10片/盒',
-        purchaseLocation: '莎莎',
-        purchaseDate: '2025-02-01',
-        expiryDate: '2026-08-15',
-        status: 'in_use',
-        isMultiPack: true,
-        totalQuantity: 10,
-        remainingQuantity: 7,
-        unit: '塊',
-        routineStage: 'Weekly',
-        notes: '退紅救星。',
-        tags: ['#退紅救星', '#平價替代']
-      }
-    ];
-  });
-
+  const [items, setItems] = useState([]);
+  const [loading, setLoading] = useState(true);
   const [activeTab, setActiveTab] = useState('inventory');
   const [routineTime, setRoutineTime] = useState('AM');
   const [filterStatus, setFilterStatus] = useState('all');
@@ -66,17 +33,11 @@ export default function App() {
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingId, setEditingId] = useState(null);
   const [selectedProduct, setSelectedProduct] = useState(null);
-  const [isSyncModalOpen, setIsSyncModalOpen] = useState(false);
-  const [jsonText, setJsonText] = useState('');
-  const [copySuccess, setCopySuccess] = useState(false);
-  const [syncStatusMsg, setSyncStatusMsg] = useState('');
-
   const [aiLoading, setAiLoading] = useState(false);
   const [aiError, setAiError] = useState('');
   const [scanPreview, setScanPreview] = useState(null);
   const [imageBase64, setImageBase64] = useState(null);
   const fileInputRef = useRef(null);
-  const importFileRef = useRef(null);
 
   const initialFormState = {
     name: '', brand: '', imageUrl: '', category: 'Serum 精華', price: '',
@@ -90,9 +51,18 @@ export default function App() {
   const presetLocations = ['專櫃', '莎莎', '卓悅', 'Sephora', '松本清', 'Donki', '官網', 'Olive Young'];
   const categories = ['Cleanser 洗面', 'Toner 爽膚水', 'Serum 精華', 'Moisturizer 乳液面霜', 'Eye Cream 眼霜', 'Mask 面膜', 'Sunscreen 防曬', 'Hair 頭髮護理', 'Bodycare 身體護理', 'Special 特別護理'];
 
+  // Real-time sync with Firebase
   useEffect(() => {
-    localStorage.setItem('glowkeeper_minimal_items', JSON.stringify(items));
-  }, [items]);
+    const unsubscribe = onSnapshot(collection(db, 'items'), (snapshot) => {
+      const data = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+      setItems(data);
+      setLoading(false);
+    }, (error) => {
+      console.error('Firebase error:', error);
+      setLoading(false);
+    });
+    return () => unsubscribe();
+  }, []);
 
   const handleInputChange = (e) => {
     const { name, value, type, checked } = e.target;
@@ -126,8 +96,9 @@ export default function App() {
 
     const reader = new FileReader();
     reader.onloadend = () => {
-      const base64 = reader.result.split(',')[1];
+      const base64 = reader.result;
       setImageBase64(base64);
+      setFormData(prev => ({ ...prev, imageUrl: base64 }));
     };
     reader.readAsDataURL(file);
   };
@@ -162,7 +133,7 @@ export default function App() {
       if (imageBase64) {
         messages[0].content.push({
           type: 'image_url',
-          image_url: { url: `data:image/jpeg;base64,${imageBase64}` }
+          image_url: { url: imageBase64 }
         });
         prompt = `請辨識圖片上的護膚品資訊，並${prompt}`;
       }
@@ -203,40 +174,66 @@ export default function App() {
       }
     } catch (err) {
       console.error(err);
-      setAiError('AI 分析失敗，請手動填寫');
+      setAiError('AI 分析失敗');
     } finally {
       setAiLoading(false);
     }
   };
 
-  const handleSubmit = (e) => {
+  const handleSubmit = async (e) => {
     e.preventDefault();
     if (!formData.name || !formData.expiryDate) return;
     const formattedTags = formData.tagsInput ? formData.tagsInput.split(/\s+/).map(t => t.startsWith('#') ? t : `#${t}`).filter(t => t.length > 1) : [];
     const todayStr = new Date().toISOString().split('T')[0];
-    let finalFinishedDate = formData.finishedDate;
+    let finalFinishedDate = formData.finishedDate || '';
     if (formData.status === 'finished' && !finalFinishedDate) finalFinishedDate = todayStr;
 
-    if (editingId) {
-      setItems(prev => prev.map(item => item.id === editingId ? { ...formData, price: Number(formData.price) || 0, finishedDate: finalFinishedDate, tags: formattedTags, id: editingId } : item));
-    } else {
-      setItems(prev => [{ ...formData, id: Date.now().toString(), price: Number(formData.price) || 0, finishedDate: finalFinishedDate, tags: formattedTags }, ...prev]);
-    }
-    setIsModalOpen(false);
-  };
+    const itemData = {
+      ...formData,
+      price: Number(formData.price) || 0,
+      finishedDate: finalFinishedDate,
+      tags: formattedTags,
+      updatedAt: new Date().toISOString()
+    };
+    delete itemData.tagsInput;
 
-  const handleDecrementQuantity = (id) => {
-    const todayStr = new Date().toISOString().split('T')[0];
-    setItems(prev => prev.map(item => {
-      if (item.id === id && item.remainingQuantity > 0) {
-        const nextQty = item.remainingQuantity - 1;
-        return { ...item, remainingQuantity: nextQty, status: nextQty === 0 ? 'finished' : item.status, finishedDate: nextQty === 0 ? (item.finishedDate || todayStr) : item.finishedDate };
+    try {
+      if (editingId) {
+        await updateDoc(doc(db, 'items', editingId), itemData);
+      } else {
+        await addDoc(collection(db, 'items'), { ...itemData, createdAt: new Date().toISOString() });
       }
-      return item;
-    }));
+      setIsModalOpen(false);
+    } catch (err) {
+      console.error(err);
+      alert('儲存失敗');
+    }
   };
 
-  const handleDelete = (id) => setItems(prev => prev.filter(i => i.id !== id));
+  const handleDecrementQuantity = async (id) => {
+    const item = items.find(i => i.id === id);
+    if (!item || item.remainingQuantity <= 0) return;
+    const nextQty = item.remainingQuantity - 1;
+    const todayStr = new Date().toISOString().split('T')[0];
+    try {
+      await updateDoc(doc(db, 'items', id), {
+        remainingQuantity: nextQty,
+        status: nextQty === 0 ? 'finished' : item.status,
+        finishedDate: nextQty === 0 ? (item.finishedDate || todayStr) : item.finishedDate
+      });
+    } catch (err) {
+      console.error(err);
+    }
+  };
+
+  const handleDelete = async (id) => {
+    if (!confirm('確定刪除？')) return;
+    try {
+      await deleteDoc(doc(db, 'items', id));
+    } catch (err) {
+      console.error(err);
+    }
+  };
 
   const getExpiryDetails = (expiryDateStr) => {
     if (!expiryDateStr) return { days: 999, status: 'normal', label: '' };
@@ -256,7 +253,7 @@ export default function App() {
 
   const filteredItems = useMemo(() => {
     let result = items.filter(item => {
-      const matchesSearch = item.name.toLowerCase().includes(searchQuery.toLowerCase()) || item.brand.toLowerCase().includes(searchQuery.toLowerCase());
+      const matchesSearch = (item.name || '').toLowerCase().includes(searchQuery.toLowerCase()) || (item.brand || '').toLowerCase().includes(searchQuery.toLowerCase());
       const matchesStatus = filterStatus === 'all' || item.status === filterStatus;
       const matchesCategory = filterCategory === 'all' || item.category === filterCategory;
       const matchesTag = filterTag === 'all' || (Array.isArray(item.tags) && item.tags.includes(filterTag));
@@ -276,6 +273,10 @@ export default function App() {
     return items.filter(item => item.status === 'in_use' && (item.routineStage === routineTime || item.routineStage === 'AM/PM')).sort((a, b) => (a.stepOrder || 99) - (b.stepOrder || 99));
   }, [items, routineTime]);
 
+  if (loading) {
+    return <div className="min-h-screen flex items-center justify-center bg-[#faf9f6]"><div className="text-stone-500">載入中...</div></div>;
+  }
+
   return (
     <div className="min-h-screen bg-[#faf9f6] text-stone-800 font-sans">
       <header className="sticky top-0 z-30 bg-[#faf9f6]/80 backdrop-blur-md border-b border-stone-200/60 px-4 md:px-8 py-4">
@@ -292,7 +293,7 @@ export default function App() {
               <button onClick={() => setActiveTab('inventory')} className={`px-3.5 py-1.5 rounded-xl text-xs font-medium ${activeTab === 'inventory' ? 'bg-white shadow-sm' : 'text-stone-600'}`}>庫存</button>
               <button onClick={() => setActiveTab('routine')} className={`px-3.5 py-1.5 rounded-xl text-xs font-medium ${activeTab === 'routine' ? 'bg-white shadow-sm' : 'text-stone-600'}`}>Routine</button>
             </div>
-            <button onClick={() => { setJsonText(JSON.stringify(items, null, 2)); setIsSyncModalOpen(true); }} className="flex items-center gap-1 bg-white border border-stone-200 px-3 py-2 rounded-2xl text-xs"><Cloud className="h-4 w-4 text-emerald-800" />同步</button>
+            <div className="flex items-center gap-1 text-xs text-emerald-700 bg-emerald-50 px-3 py-2 rounded-2xl"><Cloud className="h-4 w-4" />已同步</div>
             <button onClick={() => handleOpenModal()} className="flex items-center gap-1 bg-stone-900 text-white px-3.5 py-2 rounded-2xl text-xs"><Plus className="h-4 w-4" />新增</button>
           </div>
         </div>
@@ -334,6 +335,7 @@ export default function App() {
                 <table className="w-full text-left text-xs">
                   <thead className="bg-stone-50 border-b text-stone-500">
                     <tr>
+                      <th className="py-3 px-4 w-16">圖片</th>
                       <th className="py-3 px-4"><button onClick={() => { setSortField('name'); setSortOrder(p => p === 'asc' ? 'desc' : 'asc'); }} className="flex items-center gap-1">產品 <ArrowUpDown className="h-3 w-3" /></button></th>
                       <th className="py-3 px-4">類別</th>
                       <th className="py-3 px-4">狀態</th>
@@ -344,11 +346,18 @@ export default function App() {
                   </thead>
                   <tbody className="divide-y">
                     {filteredItems.length === 0 ? (
-                      <tr><td colSpan="6" className="py-12 text-center text-stone-400"><Package className="h-8 w-8 mx-auto mb-2 opacity-40" /><p>沒有找到護膚品</p></td></tr>
+                      <tr><td colSpan="7" className="py-12 text-center text-stone-400"><Package className="h-8 w-8 mx-auto mb-2 opacity-40" /><p>沒有找到護膚品</p></td></tr>
                     ) : filteredItems.map(item => {
                       const expiry = getExpiryDetails(item.expiryDate);
                       return (
                         <tr key={item.id} className="hover:bg-stone-50">
+                          <td className="py-3 px-4">
+                            {item.imageUrl ? (
+                              <img src={item.imageUrl} alt={item.name} className="h-12 w-12 object-cover rounded-xl border" />
+                            ) : (
+                              <div className="h-12 w-12 rounded-xl bg-stone-100 flex items-center justify-center text-stone-300"><Package className="h-5 w-5" /></div>
+                            )}
+                          </td>
                           <td className="py-3 px-4">
                             <div onClick={() => setSelectedProduct(item)} className="font-semibold cursor-pointer hover:text-emerald-800">{item.name}</div>
                             <div className="text-[11px] text-stone-400">{item.brand}</div>
@@ -401,7 +410,11 @@ export default function App() {
               ) : routineItems.map((item, index) => (
                 <div key={item.id} onClick={() => setSelectedProduct(item)} className="p-4 rounded-3xl border bg-white shadow-sm flex items-center justify-between hover:border-emerald-800/40 cursor-pointer">
                   <div className="flex items-center space-x-4">
-                    <div className="h-8 w-8 rounded-2xl bg-emerald-50 text-emerald-800 text-xs font-semibold flex items-center justify-center">{index + 1}</div>
+                    {item.imageUrl ? (
+                      <img src={item.imageUrl} alt={item.name} className="h-14 w-14 object-cover rounded-2xl border shrink-0" />
+                    ) : (
+                      <div className="h-14 w-14 rounded-2xl bg-stone-100 flex items-center justify-center text-stone-300 shrink-0"><Package className="h-6 w-6" /></div>
+                    )}
                     <div>
                       <span className="text-xs text-emerald-800 bg-emerald-50 px-2 py-0.5 rounded">{item.category}</span>
                       <h3 className="font-semibold mt-0.5">{item.name}</h3>
@@ -430,11 +443,17 @@ export default function App() {
                   <button type="button" onClick={() => fileInputRef.current?.click()} className="flex items-center gap-1 text-[11px] bg-white border px-2.5 py-1 rounded-xl"><Camera className="h-3.5 w-3.5" />上傳圖片</button>
                   <input type="file" ref={fileInputRef} accept="image/*" onChange={handleImageUpload} className="hidden" />
                 </div>
-                {scanPreview && <div className="flex items-center gap-2"><img src={scanPreview} alt="" className="h-10 w-10 object-cover rounded-lg" /><span className="text-[10px] text-stone-500">已載入圖片</span></div>}
+                {scanPreview && <div className="flex items-center gap-2"><img src={scanPreview} alt="" className="h-16 w-16 object-cover rounded-xl border" /><span className="text-[10px] text-stone-500">已載入圖片</span></div>}
                 <button type="button" onClick={handleAiLookup} disabled={aiLoading} className="w-full py-1.5 bg-emerald-800 text-white rounded-xl text-xs font-medium flex items-center justify-center gap-1.5 disabled:opacity-50">
-                  <Sparkles className="h-3.5 w-3.5" />{aiLoading ? '分析中...' : 'AI 智能填寫（名稱 + 品牌 + 圖片）'}
+                  <Sparkles className="h-3.5 w-3.5" />{aiLoading ? '分析中...' : 'AI 智能填寫'}
                 </button>
                 {aiError && <p className="text-[10px] text-amber-700 bg-amber-50 px-2 py-1 rounded">{aiError}</p>}
+              </div>
+
+              <div>
+                <label className="block text-stone-600 mb-1">產品圖片連結</label>
+                <input type="text" name="imageUrl" placeholder="可貼上圖片網址，或用上方上傳" value={formData.imageUrl?.startsWith('data:') ? '' : formData.imageUrl} onChange={handleInputChange} className="w-full px-3 py-2 border rounded-xl" />
+                {formData.imageUrl && <img src={formData.imageUrl} alt="" className="mt-2 h-16 w-16 object-cover rounded-xl border" />}
               </div>
 
               <div className="grid grid-cols-2 gap-3">
@@ -501,6 +520,7 @@ export default function App() {
               <button onClick={() => setSelectedProduct(null)}><X className="h-5 w-5" /></button>
             </div>
             <div className="p-6 space-y-4 text-xs">
+              {selectedProduct.imageUrl && <img src={selectedProduct.imageUrl} alt="" className="w-full h-48 object-cover rounded-2xl" />}
               <h3 className="text-base font-bold">{selectedProduct.name}</h3>
               <p className="text-stone-500">品牌：{selectedProduct.brand || '-'}</p>
               {Array.isArray(selectedProduct.tags) && <div className="flex flex-wrap gap-1">{selectedProduct.tags.map(t => <span key={t} className="text-[10px] text-emerald-800 bg-emerald-50 px-2 py-0.5 rounded">{t}</span>)}</div>}
@@ -510,20 +530,6 @@ export default function App() {
               </div>
               {selectedProduct.notes && <div className="p-3 bg-stone-50 rounded-xl"><span className="text-[10px] text-stone-400 block">備註</span>{selectedProduct.notes}</div>}
               <button onClick={() => { const t = selectedProduct; setSelectedProduct(null); handleOpenModal(t); }} className="w-full py-2.5 bg-stone-900 text-white rounded-2xl text-xs flex items-center justify-center gap-1.5"><Edit3 className="h-3.5 w-3.5" />編輯</button>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {isSyncModalOpen && (
-        <div className="fixed inset-0 z-50 bg-stone-900/40 flex items-center justify-center p-4">
-          <div className="bg-white w-full max-w-lg rounded-3xl shadow-xl">
-            <div className="px-6 py-4 border-b flex justify-between items-center"><h3 className="font-semibold">數據同步</h3><button onClick={() => setIsSyncModalOpen(false)}><X className="h-5 w-5" /></button></div>
-            <div className="p-6 space-y-4 text-xs">
-              <button onClick={() => { navigator.clipboard.writeText(JSON.stringify(items, null, 2)); setCopySuccess(true); setTimeout(() => setCopySuccess(false), 2000); }} className="w-full py-2 bg-emerald-800 text-white rounded-xl">{copySuccess ? '已複製' : '複製 JSON'}</button>
-              <textarea rows="4" value={jsonText} onChange={(e) => setJsonText(e.target.value)} className="w-full px-3 py-2 border rounded-xl font-mono text-[11px]" />
-              <button onClick={() => { try { const p = JSON.parse(jsonText); if (Array.isArray(p)) { setItems(p); setIsSyncModalOpen(false); } } catch(e) { setSyncStatusMsg('格式錯誤'); } }} className="w-full py-2 bg-stone-900 text-white rounded-xl">匯入</button>
-              {syncStatusMsg && <p className="text-red-600">{syncStatusMsg}</p>}
             </div>
           </div>
         </div>
