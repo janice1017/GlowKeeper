@@ -18,25 +18,41 @@ const firebaseConfig = {
 const app = initializeApp(firebaseConfig);
 const db = getFirestore(app);
 
-const compressImage = (file, maxWidth = 800, quality = 0.7) => {
-  return new Promise((resolve) => {
+// More aggressive image compression for mobile
+const compressImage = (file, maxWidth = 600, quality = 0.5) => {
+  return new Promise((resolve, reject) => {
     const reader = new FileReader();
+    reader.onerror = () => reject(new Error('讀取圖片失敗'));
     reader.onload = (e) => {
       const img = new Image();
+      img.onerror = () => reject(new Error('圖片格式不支援'));
       img.onload = () => {
         const canvas = document.createElement('canvas');
         let width = img.width;
         let height = img.height;
+        
+        // More aggressive resize
         if (width > maxWidth) {
-          height = (height * maxWidth) / width;
+          height = Math.round((height * maxWidth) / width);
           width = maxWidth;
         }
+        
         canvas.width = width;
         canvas.height = height;
         const ctx = canvas.getContext('2d');
         ctx.drawImage(img, 0, 0, width, height);
+        
+        // Lower quality for smaller file
         const compressed = canvas.toDataURL('image/jpeg', quality);
-        resolve(compressed);
+        
+        // Check size (Firestore limit is ~1MB, keep under 500KB)
+        if (compressed.length > 500000) {
+          // Try even more aggressive
+          const smaller = canvas.toDataURL('image/jpeg', 0.3);
+          resolve(smaller);
+        } else {
+          resolve(compressed);
+        }
       };
       img.src = e.target.result;
     };
@@ -116,15 +132,23 @@ export default function App() {
   const handleImageUpload = async (e) => {
     const file = e.target.files?.[0];
     if (!file) return;
+    
+    // Check file size first
+    if (file.size > 10 * 1024 * 1024) {
+      setAiError('圖片太大，請選擇較細嘅圖片');
+      return;
+    }
+    
     setCompressing(true);
+    setAiError('');
     try {
-      const compressed = await compressImage(file, 800, 0.6);
+      const compressed = await compressImage(file, 600, 0.5);
       setScanPreview(compressed);
       setImageBase64(compressed);
       setFormData(prev => ({ ...prev, imageUrl: compressed }));
     } catch (err) {
       console.error(err);
-      setAiError('圖片處理失敗');
+      setAiError(err.message || '圖片處理失敗');
     } finally {
       setCompressing(false);
     }
@@ -224,6 +248,12 @@ export default function App() {
     };
     delete itemData.tagsInput;
 
+    // Remove image if too large
+    if (itemData.imageUrl && itemData.imageUrl.length > 800000) {
+      itemData.imageUrl = '';
+      setAiError('圖片太大已移除，其他資料已儲存');
+    }
+
     try {
       if (editingId) {
         await updateDoc(doc(db, 'items', editingId), itemData);
@@ -233,7 +263,7 @@ export default function App() {
       setIsModalOpen(false);
     } catch (err) {
       console.error(err);
-      alert('儲存失敗：' + (err.message || '請檢查圖片大小'));
+      alert('儲存失敗：' + (err.message || '請嘗試唔上傳圖片'));
     }
   };
 
