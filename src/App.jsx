@@ -5,6 +5,7 @@ import {
 } from 'lucide-react';
 import { initializeApp } from 'firebase/app';
 import { getFirestore, collection, onSnapshot, addDoc, updateDoc, deleteDoc, doc } from 'firebase/firestore';
+import { getStorage, ref, uploadBytes, getDownloadURL } from 'firebase/storage';
 
 const firebaseConfig = {
   apiKey: "AIzaSyAR655DtBH7dpgq-9Zq8U6F8ONI5_fc234",
@@ -17,48 +18,7 @@ const firebaseConfig = {
 
 const app = initializeApp(firebaseConfig);
 const db = getFirestore(app);
-
-// More aggressive image compression for mobile
-const compressImage = (file, maxWidth = 600, quality = 0.5) => {
-  return new Promise((resolve, reject) => {
-    const reader = new FileReader();
-    reader.onerror = () => reject(new Error('讀取圖片失敗'));
-    reader.onload = (e) => {
-      const img = new Image();
-      img.onerror = () => reject(new Error('圖片格式不支援'));
-      img.onload = () => {
-        const canvas = document.createElement('canvas');
-        let width = img.width;
-        let height = img.height;
-        
-        // More aggressive resize
-        if (width > maxWidth) {
-          height = Math.round((height * maxWidth) / width);
-          width = maxWidth;
-        }
-        
-        canvas.width = width;
-        canvas.height = height;
-        const ctx = canvas.getContext('2d');
-        ctx.drawImage(img, 0, 0, width, height);
-        
-        // Lower quality for smaller file
-        const compressed = canvas.toDataURL('image/jpeg', quality);
-        
-        // Check size (Firestore limit is ~1MB, keep under 500KB)
-        if (compressed.length > 500000) {
-          // Try even more aggressive
-          const smaller = canvas.toDataURL('image/jpeg', 0.3);
-          resolve(smaller);
-        } else {
-          resolve(compressed);
-        }
-      };
-      img.src = e.target.result;
-    };
-    reader.readAsDataURL(file);
-  });
-};
+const storage = getStorage(app);
 
 export default function App() {
   const [items, setItems] = useState([]);
@@ -78,8 +38,8 @@ export default function App() {
   const [aiLoading, setAiLoading] = useState(false);
   const [aiError, setAiError] = useState('');
   const [scanPreview, setScanPreview] = useState(null);
-  const [imageBase64, setImageBase64] = useState(null);
-  const [compressing, setCompressing] = useState(false);
+  const [imageFile, setImageFile] = useState(null);
+  const [uploading, setUploading] = useState(false);
   const fileInputRef = useRef(null);
 
   const initialFormState = {
@@ -125,45 +85,44 @@ export default function App() {
     }
     setAiError('');
     setScanPreview(null);
-    setImageBase64(null);
+    setImageFile(null);
     setIsModalOpen(true);
   };
 
-  const handleImageUpload = async (e) => {
+  const handleImageUpload = (e) => {
     const file = e.target.files?.[0];
     if (!file) return;
     
-    // Check file size first
-    if (file.size > 10 * 1024 * 1024) {
-      setAiError('圖片太大，請選擇較細嘅圖片');
+    if (file.size > 5 * 1024 * 1024) {
+      setAiError('圖片太大（最大 5MB）');
       return;
     }
     
-    setCompressing(true);
+    setImageFile(file);
+    const previewUrl = URL.createObjectURL(file);
+    setScanPreview(previewUrl);
     setAiError('');
-    try {
-      const compressed = await compressImage(file, 600, 0.5);
-      setScanPreview(compressed);
-      setImageBase64(compressed);
-      setFormData(prev => ({ ...prev, imageUrl: compressed }));
-    } catch (err) {
-      console.error(err);
-      setAiError(err.message || '圖片處理失敗');
-    } finally {
-      setCompressing(false);
-    }
+  };
+
+  const uploadImageToStorage = async (file) => {
+    const filename = `products/${Date.now()}_${file.name}`;
+    const storageRef = ref(storage, filename);
+    await uploadBytes(storageRef, file);
+    const url = await getDownloadURL(storageRef);
+    return url;
   };
 
   const handleAiLookup = async () => {
-    if (!formData.name.trim() && !imageBase64) {
-      setAiError('請先輸入產品名稱或上傳圖片');
+    if (!formData.name.trim()) {
+      setAiError('請先輸入產品名稱');
       return;
     }
     setAiLoading(true);
     setAiError('');
 
     try {
-      let prompt = `請用繁體中文回應純 JSON，包含以下 key：
+      const prompt = `分析護膚品：「${formData.name}」${formData.brand ? `，品牌：${formData.brand}` : ''}。
+請用繁體中文回應純 JSON，包含以下 key：
 - name: 產品名稱
 - brand: 品牌
 - category: 選自 ["Cleanser 洗面", "Toner 爽膚水", "Serum 精華", "Moisturizer 乳液面霜", "Eye Cream 眼霜", "Mask 面膜", "Sunscreen 防曬", "Hair 頭髮護理", "Bodycare 身體護理", "Special 特別護理"]
@@ -176,21 +135,6 @@ export default function App() {
 
 只回應 JSON。`;
 
-      if (formData.name) prompt += `\n產品名稱：${formData.name}`;
-      if (formData.brand) prompt += `\n品牌：${formData.brand}`;
-
-      const messages = [{ role: 'user', content: [] }];
-
-      if (imageBase64) {
-        messages[0].content.push({
-          type: 'image_url',
-          image_url: { url: imageBase64 }
-        });
-        prompt = `請辨識圖片上的護膚品資訊，並${prompt}`;
-      }
-
-      messages[0].content.push({ type: 'text', text: prompt });
-
       const response = await fetch('https://api.x.ai/v1/chat/completions', {
         method: 'POST',
         headers: {
@@ -199,7 +143,7 @@ export default function App() {
         },
         body: JSON.stringify({
           model: 'grok-4',
-          messages,
+          messages: [{ role: 'user', content: prompt }],
           temperature: 0.3
         })
       });
@@ -234,36 +178,47 @@ export default function App() {
   const handleSubmit = async (e) => {
     e.preventDefault();
     if (!formData.name || !formData.expiryDate) return;
-    const formattedTags = formData.tagsInput ? formData.tagsInput.split(/\s+/).map(t => t.startsWith('#') ? t : `#${t}`).filter(t => t.length > 1) : [];
-    const todayStr = new Date().toISOString().split('T')[0];
-    let finalFinishedDate = formData.finishedDate || '';
-    if (formData.status === 'finished' && !finalFinishedDate) finalFinishedDate = todayStr;
-
-    const itemData = {
-      ...formData,
-      price: Number(formData.price) || 0,
-      finishedDate: finalFinishedDate,
-      tags: formattedTags,
-      updatedAt: new Date().toISOString()
-    };
-    delete itemData.tagsInput;
-
-    // Remove image if too large
-    if (itemData.imageUrl && itemData.imageUrl.length > 800000) {
-      itemData.imageUrl = '';
-      setAiError('圖片太大已移除，其他資料已儲存');
-    }
-
+    
+    setUploading(true);
+    setAiError('');
+    
     try {
+      let imageUrl = formData.imageUrl;
+      
+      // Upload new image to Firebase Storage
+      if (imageFile) {
+        imageUrl = await uploadImageToStorage(imageFile);
+      }
+
+      const formattedTags = formData.tagsInput ? formData.tagsInput.split(/\s+/).map(t => t.startsWith('#') ? t : `#${t}`).filter(t => t.length > 1) : [];
+      const todayStr = new Date().toISOString().split('T')[0];
+      let finalFinishedDate = formData.finishedDate || '';
+      if (formData.status === 'finished' && !finalFinishedDate) finalFinishedDate = todayStr;
+
+      const itemData = {
+        ...formData,
+        imageUrl,
+        price: Number(formData.price) || 0,
+        finishedDate: finalFinishedDate,
+        tags: formattedTags,
+        updatedAt: new Date().toISOString()
+      };
+      delete itemData.tagsInput;
+
       if (editingId) {
         await updateDoc(doc(db, 'items', editingId), itemData);
       } else {
         await addDoc(collection(db, 'items'), { ...itemData, createdAt: new Date().toISOString() });
       }
+      
       setIsModalOpen(false);
+      setImageFile(null);
+      setScanPreview(null);
     } catch (err) {
       console.error(err);
-      alert('儲存失敗：' + (err.message || '請嘗試唔上傳圖片'));
+      setAiError('儲存失敗：' + (err.message || '請檢查網絡'));
+    } finally {
+      setUploading(false);
     }
   };
 
@@ -514,12 +469,12 @@ export default function App() {
               <div className="p-3 bg-emerald-50 border border-emerald-200 rounded-2xl space-y-2">
                 <div className="flex items-center justify-between">
                   <span className="text-emerald-900 font-medium flex items-center gap-1"><Sparkles className="h-3.5 w-3.5" /> Grok AI</span>
-                  <button type="button" onClick={() => fileInputRef.current?.click()} disabled={compressing} className="flex items-center gap-1 text-[11px] bg-white border px-2.5 py-1 rounded-xl disabled:opacity-50">
-                    <Camera className="h-3.5 w-3.5" />{compressing ? '壓縮中...' : '上傳圖片'}
+                  <button type="button" onClick={() => fileInputRef.current?.click()} disabled={uploading} className="flex items-center gap-1 text-[11px] bg-white border px-2.5 py-1 rounded-xl disabled:opacity-50">
+                    <Camera className="h-3.5 w-3.5" />上傳圖片
                   </button>
                   <input type="file" ref={fileInputRef} accept="image/*" onChange={handleImageUpload} className="hidden" />
                 </div>
-                {scanPreview && <div className="flex items-center gap-2"><img src={scanPreview} alt="" className="h-16 w-16 object-cover rounded-xl border" /><span className="text-[10px] text-stone-500">已壓縮</span></div>}
+                {scanPreview && <div className="flex items-center gap-2"><img src={scanPreview} alt="" className="h-16 w-16 object-cover rounded-xl border" /><span className="text-[10px] text-stone-500">待上傳</span></div>}
                 <button type="button" onClick={handleAiLookup} disabled={aiLoading} className="w-full py-1.5 bg-emerald-800 text-white rounded-xl text-xs font-medium flex items-center justify-center gap-1.5 disabled:opacity-50">
                   <Sparkles className="h-3.5 w-3.5" />{aiLoading ? '分析中...' : 'AI 智能填寫'}
                 </button>
@@ -528,8 +483,8 @@ export default function App() {
 
               <div>
                 <label className="block text-stone-600 mb-1">產品圖片連結</label>
-                <input type="text" name="imageUrl" placeholder="可貼上圖片網址，或用上方上傳" value={formData.imageUrl?.startsWith('data:') ? '' : formData.imageUrl} onChange={handleInputChange} className="w-full px-3 py-2 border rounded-xl" />
-                {formData.imageUrl && <img src={formData.imageUrl} alt="" className="mt-2 h-16 w-16 object-cover rounded-xl border" />}
+                <input type="text" name="imageUrl" placeholder="可貼上圖片網址，或用上方上傳" value={formData.imageUrl} onChange={handleInputChange} className="w-full px-3 py-2 border rounded-xl" />
+                {formData.imageUrl && !scanPreview && <img src={formData.imageUrl} alt="" className="mt-2 h-16 w-16 object-cover rounded-xl border" />}
               </div>
 
               <div className="grid grid-cols-2 gap-3">
@@ -581,7 +536,7 @@ export default function App() {
 
               <div className="flex justify-end gap-2 pt-3 border-t">
                 <button type="button" onClick={() => setIsModalOpen(false)} className="px-4 py-2 border rounded-xl">取消</button>
-                <button type="submit" className="px-5 py-2 bg-stone-900 text-white rounded-xl">儲存</button>
+                <button type="submit" disabled={uploading} className="px-5 py-2 bg-stone-900 text-white rounded-xl disabled:opacity-50">{uploading ? '上傳中...' : '儲存'}</button>
               </div>
             </form>
           </div>
