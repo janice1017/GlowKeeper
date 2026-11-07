@@ -38,6 +38,7 @@ export default function App() {
   const [aiLoading, setAiLoading] = useState(false);
   const [aiError, setAiError] = useState('');
   const [scanPreview, setScanPreview] = useState(null);
+  const [imageBase64, setImageBase64] = useState(null);
   const [imageFile, setImageFile] = useState(null);
   const [uploading, setUploading] = useState(false);
   const fileInputRef = useRef(null);
@@ -85,44 +86,38 @@ export default function App() {
     }
     setAiError('');
     setScanPreview(null);
+    setImageBase64(null);
     setImageFile(null);
     setIsModalOpen(true);
   };
 
-  const handleImageUpload = (e) => {
+  const handleImageCapture = (e) => {
     const file = e.target.files?.[0];
     if (!file) return;
-    
-    if (file.size > 5 * 1024 * 1024) {
-      setAiError('圖片太大（最大 5MB）');
-      return;
-    }
     
     setImageFile(file);
     const previewUrl = URL.createObjectURL(file);
     setScanPreview(previewUrl);
+    
+    // Convert to base64 for AI
+    const reader = new FileReader();
+    reader.onloadend = () => {
+      setImageBase64(reader.result);
+    };
+    reader.readAsDataURL(file);
     setAiError('');
   };
 
-  const uploadImageToStorage = async (file) => {
-    const filename = `products/${Date.now()}_${file.name}`;
-    const storageRef = ref(storage, filename);
-    await uploadBytes(storageRef, file);
-    const url = await getDownloadURL(storageRef);
-    return url;
-  };
-
   const handleAiLookup = async () => {
-    if (!formData.name.trim()) {
-      setAiError('請先輸入產品名稱');
+    if (!formData.name.trim() && !imageBase64) {
+      setAiError('請先輸入產品名稱或影相');
       return;
     }
     setAiLoading(true);
     setAiError('');
 
     try {
-      const prompt = `分析護膚品：「${formData.name}」${formData.brand ? `，品牌：${formData.brand}` : ''}。
-請用繁體中文回應純 JSON，包含以下 key：
+      let prompt = `請用繁體中文回應純 JSON，包含以下 key：
 - name: 產品名稱
 - brand: 品牌
 - category: 選自 ["Cleanser 洗面", "Toner 爽膚水", "Serum 精華", "Moisturizer 乳液面霜", "Eye Cream 眼霜", "Mask 面膜", "Sunscreen 防曬", "Hair 頭髮護理", "Bodycare 身體護理", "Special 特別護理"]
@@ -135,6 +130,21 @@ export default function App() {
 
 只回應 JSON。`;
 
+      if (formData.name) prompt += `\n產品名稱：${formData.name}`;
+      if (formData.brand) prompt += `\n品牌：${formData.brand}`;
+
+      const messages = [{ role: 'user', content: [] }];
+
+      if (imageBase64) {
+        messages[0].content.push({
+          type: 'image_url',
+          image_url: { url: imageBase64 }
+        });
+        prompt = `請辨識圖片上的護膚品資訊，並${prompt}`;
+      }
+
+      messages[0].content.push({ type: 'text', text: prompt });
+
       const response = await fetch('https://api.x.ai/v1/chat/completions', {
         method: 'POST',
         headers: {
@@ -143,7 +153,7 @@ export default function App() {
         },
         body: JSON.stringify({
           model: 'grok-4',
-          messages: [{ role: 'user', content: prompt }],
+          messages,
           temperature: 0.3
         })
       });
@@ -175,6 +185,14 @@ export default function App() {
     }
   };
 
+  const uploadImageToStorage = async (file) => {
+    const filename = `products/${Date.now()}_${file.name.replace(/[^a-zA-Z0-9.]/g, '_')}`;
+    const storageRef = ref(storage, filename);
+    const snapshot = await uploadBytes(storageRef, file);
+    const url = await getDownloadURL(snapshot.ref);
+    return url;
+  };
+
   const handleSubmit = async (e) => {
     e.preventDefault();
     if (!formData.name || !formData.expiryDate) return;
@@ -185,9 +203,16 @@ export default function App() {
     try {
       let imageUrl = formData.imageUrl;
       
-      // Upload new image to Firebase Storage
+      // Upload image to Firebase Storage if there's a new file
       if (imageFile) {
-        imageUrl = await uploadImageToStorage(imageFile);
+        try {
+          imageUrl = await uploadImageToStorage(imageFile);
+        } catch (uploadErr) {
+          console.error('Upload error:', uploadErr);
+          // Continue without image if upload fails
+          imageUrl = '';
+          setAiError('圖片上傳失敗，其他資料已儲存');
+        }
       }
 
       const formattedTags = formData.tagsInput ? formData.tagsInput.split(/\s+/).map(t => t.startsWith('#') ? t : `#${t}`).filter(t => t.length > 1) : [];
@@ -214,6 +239,7 @@ export default function App() {
       setIsModalOpen(false);
       setImageFile(null);
       setScanPreview(null);
+      setImageBase64(null);
     } catch (err) {
       console.error(err);
       setAiError('儲存失敗：' + (err.message || '請檢查網絡'));
@@ -470,21 +496,15 @@ export default function App() {
                 <div className="flex items-center justify-between">
                   <span className="text-emerald-900 font-medium flex items-center gap-1"><Sparkles className="h-3.5 w-3.5" /> Grok AI</span>
                   <button type="button" onClick={() => fileInputRef.current?.click()} disabled={uploading} className="flex items-center gap-1 text-[11px] bg-white border px-2.5 py-1 rounded-xl disabled:opacity-50">
-                    <Camera className="h-3.5 w-3.5" />上傳圖片
+                    <Camera className="h-3.5 w-3.5" />影相 / 上傳
                   </button>
-                  <input type="file" ref={fileInputRef} accept="image/*" onChange={handleImageUpload} className="hidden" />
+                  <input type="file" ref={fileInputRef} accept="image/*" capture="environment" onChange={handleImageCapture} className="hidden" />
                 </div>
-                {scanPreview && <div className="flex items-center gap-2"><img src={scanPreview} alt="" className="h-16 w-16 object-cover rounded-xl border" /><span className="text-[10px] text-stone-500">待上傳</span></div>}
+                {scanPreview && <div className="flex items-center gap-2"><img src={scanPreview} alt="" className="h-16 w-16 object-cover rounded-xl border" /><span className="text-[10px] text-stone-500">已載入</span></div>}
                 <button type="button" onClick={handleAiLookup} disabled={aiLoading} className="w-full py-1.5 bg-emerald-800 text-white rounded-xl text-xs font-medium flex items-center justify-center gap-1.5 disabled:opacity-50">
                   <Sparkles className="h-3.5 w-3.5" />{aiLoading ? '分析中...' : 'AI 智能填寫'}
                 </button>
                 {aiError && <p className="text-[10px] text-amber-700 bg-amber-50 px-2 py-1 rounded">{aiError}</p>}
-              </div>
-
-              <div>
-                <label className="block text-stone-600 mb-1">產品圖片連結</label>
-                <input type="text" name="imageUrl" placeholder="可貼上圖片網址，或用上方上傳" value={formData.imageUrl} onChange={handleInputChange} className="w-full px-3 py-2 border rounded-xl" />
-                {formData.imageUrl && !scanPreview && <img src={formData.imageUrl} alt="" className="mt-2 h-16 w-16 object-cover rounded-xl border" />}
               </div>
 
               <div className="grid grid-cols-2 gap-3">
@@ -536,7 +556,7 @@ export default function App() {
 
               <div className="flex justify-end gap-2 pt-3 border-t">
                 <button type="button" onClick={() => setIsModalOpen(false)} className="px-4 py-2 border rounded-xl">取消</button>
-                <button type="submit" disabled={uploading} className="px-5 py-2 bg-stone-900 text-white rounded-xl disabled:opacity-50">{uploading ? '上傳中...' : '儲存'}</button>
+                <button type="submit" disabled={uploading} className="px-5 py-2 bg-stone-900 text-white rounded-xl disabled:opacity-50">{uploading ? '儲存中...' : '儲存'}</button>
               </div>
             </form>
           </div>
