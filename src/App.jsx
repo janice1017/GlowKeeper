@@ -18,6 +18,7 @@ export default function App() {
         id: '1',
         name: '潤澤修護玻尿酸精華',
         brand: 'Aesop',
+        imageUrl: '',
         category: 'Serum 精華',
         price: 450,
         size: '50ml',
@@ -42,6 +43,7 @@ export default function App() {
         id: '2',
         name: '積雪草鎮定舒緩面膜 Pack',
         brand: 'VT Cosmetics',
+        imageUrl: '',
         category: 'Mask 面膜',
         price: 120,
         size: '10片/盒',
@@ -66,6 +68,7 @@ export default function App() {
         id: '3',
         name: '水感高倍防曬乳 SPF50+',
         brand: 'Anessa',
+        imageUrl: '',
         category: 'Sunscreen 防曬',
         price: 210,
         size: '60ml',
@@ -85,30 +88,6 @@ export default function App() {
         notes: '成膜快，不油膩不致痘。',
         keyBenefits: ['高效防曬', '防水防汗', '清爽不黏'],
         tags: ['#清爽防曬', '#不致痘']
-      },
-      {
-        id: '4',
-        name: '頭皮淨化賦活洗髮精',
-        brand: 'Aveda',
-        category: 'Hair 頭髮護理',
-        price: 320,
-        size: '250ml',
-        purchaseLocation: '專櫃',
-        purchaseDate: '2025-01-15',
-        expiryDate: '2027-01-01',
-        paoMonths: 12,
-        openedDate: '2025-01-18',
-        finishedDate: '',
-        status: 'in_use',
-        isMultiPack: false,
-        totalQuantity: 1,
-        remainingQuantity: 1,
-        unit: '支',
-        routineStage: 'PM',
-        stepOrder: 7,
-        notes: '洗完頭皮非常清爽，蓬鬆感好。',
-        keyBenefits: ['頭皮控油', '強健髮根'],
-        tags: ['#頭皮保養', '#蓬鬆神物']
       }
     ];
   });
@@ -121,18 +100,13 @@ export default function App() {
   const [filterTag, setFilterTag] = useState('all');
   const [searchQuery, setSearchQuery] = useState('');
   
-  // Database Sort State
   const [sortField, setSortField] = useState('expiryDate'); 
   const [sortOrder, setSortOrder] = useState('asc'); 
 
-  // Modal / Form state
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingId, setEditingId] = useState(null);
-  
-  // Product Details Preview Modal State
   const [selectedProduct, setSelectedProduct] = useState(null);
 
-  // Sync / Backup Modal State
   const [isSyncModalOpen, setIsSyncModalOpen] = useState(false);
   const [jsonText, setJsonText] = useState('');
   const [copySuccess, setCopySuccess] = useState(false);
@@ -180,74 +154,10 @@ export default function App() {
     'Bath & Shower 洗澡', 'Bodycare 身體護理', 'Special 特別護理'
   ];
 
-  // Smart Local Keyword Matcher
-  const inferSkincareDetails = (nameStr) => {
-    const lower = nameStr.toLowerCase();
-    let category = 'Serum 精華';
-    let routineStage = 'AM/PM';
-    let brand = '';
-    let size = '50ml';
-    let tags = ['#保濕補水'];
-    let notes = '溫和保濕修護，幫助維持肌膚穩定狀態。';
-    let location = '專櫃';
-
-    if (lower.includes('kiehl') || lower.includes('契爾氏')) brand = "Kiehl's";
-    else if (lower.includes('aesop')) brand = 'Aesop';
-    else if (lower.includes('sk-ii') || lower.includes('skii')) brand = 'SK-II';
-    else if (lower.includes('anessa') || lower.includes('安耐曬')) brand = 'Anessa';
-    else if (lower.includes('vt')) brand = 'VT Cosmetics';
-    else if (lower.includes('la mer')) brand = 'La Mer';
-    else if (lower.includes('shiseido') || lower.includes('資生堂')) brand = 'Shiseido';
-    else if (lower.includes('lancome') || lower.includes('蘭蔻')) brand = 'Lancôme';
-    else if (lower.includes('estee') || lower.includes('雅詩蘭黛')) brand = 'Estée Lauder';
-
-    if (lower.includes('洗面') || lower.includes('潔面') || lower.includes('cleanser') || lower.includes('卸妝')) {
-      category = 'Cleanser 洗面';
-      routineStage = 'AM/PM';
-      notes = '溫和清潔肌膚油脂與髒汙。';
-    } else if (lower.includes('水') || lower.includes('toner') || lower.includes('爽膚') || lower.includes('神仙水')) {
-      category = 'Toner 爽膚水';
-      routineStage = 'AM/PM';
-      size = '150ml';
-      notes = '二次清潔與快速浸潤角質層。';
-    } else if (lower.includes('精華') || lower.includes('serum') || lower.includes('小棕瓶') || lower.includes('小黑瓶')) {
-      category = 'Serum 精華';
-      routineStage = 'AM/PM';
-      tags = ['#急救修復', '#保濕補水'];
-      notes = '密集修護精華，提升肌膚屏障健康。';
-    } else if (lower.includes('霜') || lower.includes('乳液') || lower.includes('cream') || lower.includes('moisturizer')) {
-      category = 'Moisturizer 乳液面霜';
-      routineStage = 'PM';
-      notes = '鎖水保濕，滋潤角質。';
-    } else if (lower.includes('眼') || lower.includes('eye')) {
-      category = 'Eye Cream 眼霜';
-      routineStage = 'PM';
-      size = '15ml';
-      tags = ['#抗衰老'];
-      notes = '滋潤眼周肌膚，撫平細紋。';
-    } else if (lower.includes('膜') || lower.includes('mask')) {
-      category = 'Mask 面膜';
-      routineStage = 'Weekly';
-      size = '10片/盒';
-      tags = ['#急救修復', '#曬後修護'];
-      notes = '密集急救滋養，恢復肌膚水潤感。';
-    } else if (lower.includes('防曬') || lower.includes('sunscreen') || lower.includes('sun')) {
-      category = 'Sunscreen 防曬';
-      routineStage = 'AM';
-      size = '60ml';
-      tags = ['#清爽防曬', '#不致痘'];
-      notes = '日間阻隔紫外線，防止曬黑光老化。';
-    }
-
-    return { brand, category, routineStage, size, tags, notes, location };
-  };
-
-  // Sync to Local Storage
   useEffect(() => {
     localStorage.setItem('glowkeeper_minimal_items', JSON.stringify(items));
   }, [items]);
 
-  // Handle Input Changes
   const handleInputChange = (e) => {
     const { name, value, type, checked } = e.target;
     setFormData(prev => {
@@ -259,7 +169,6 @@ export default function App() {
     });
   };
 
-  // Open Modal
   const handleOpenModal = (item = null) => {
     if (item) {
       setEditingId(item.id);
@@ -277,7 +186,6 @@ export default function App() {
     setIsModalOpen(true);
   };
 
-  // Sync & Export/Import Handlers
   const handleOpenSyncModal = () => {
     setJsonText(JSON.stringify(items, null, 2));
     setCopySuccess(false);
@@ -338,41 +246,7 @@ export default function App() {
     reader.readAsText(file);
   };
 
-  // OCR Image Upload / Camera Handling
-  const handleImageScan = async (e) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
-
-    setOcrLoading(true);
-    setAiError('');
-
-    try {
-      const previewUrl = URL.createObjectURL(file);
-      setScanPreview(previewUrl);
-
-      const inferred = inferSkincareDetails(file.name || '護膚產品');
-      
-      setTimeout(() => {
-        setFormData(prev => ({
-          ...prev,
-          imageUrl: previewUrl,
-          brand: inferred.brand || prev.brand,
-          category: inferred.category,
-          routineStage: inferred.routineStage,
-          size: inferred.size,
-          notes: inferred.notes,
-          tagsInput: inferred.tags.join(' ')
-        }));
-        setOcrLoading(false);
-      }, 600);
-    } catch (err) {
-      console.error(err);
-      setAiError('圖片解析完成');
-      setOcrLoading(false);
-    }
-  };
-
-  // AI Lookup Function
+  // Grok AI Lookup
   const handleAiLookup = async () => {
     if (!formData.name.trim()) {
       setAiError('請先輸入護膚品名稱');
@@ -383,30 +257,79 @@ export default function App() {
     setAiError('');
 
     try {
-      const inferred = inferSkincareDetails(formData.name);
+      const prompt = `分析護膚品：「${formData.name}」。
+請用繁體中文回應純 JSON 格式，包含以下 key:
+- brand: 品牌名稱
+- category: 選自 ["Cleanser 洗面", "Toner 爽膚水", "Serum 精華", "Moisturizer 乳液面霜", "Eye Cream 眼霜", "Mask 面膜", "Sunscreen 防曬", "Hair 頭髮護理", "Bath & Shower 洗澡", "Bodycare 身體護理", "Special 特別護理"]
+- routineStage: 選自 ["AM", "PM", "AM/PM", "Weekly"]
+- notes: 1-2句簡短功效說明
+- tags: 2-3個以 # 開頭的繁體中文標籤陣列
+- size: 標準容量估計
+- price: 估計市場價格數字 (HKD)
+- purchaseLocation: 常見購買渠道建議
 
-      setTimeout(() => {
+只回應 JSON，不要加其他文字。`;
+
+      const response = await fetch('https://api.x.ai/v1/chat/completions', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${import.meta.env.VITE_GROK_API_KEY}`
+        },
+        body: JSON.stringify({
+          model: 'grok-2-latest',
+          messages: [{ role: 'user', content: prompt }],
+          temperature: 0.3
+        })
+      });
+
+      const data = await response.json();
+      const textResult = data?.choices?.[0]?.message?.content;
+
+      if (textResult) {
+        const cleanJson = textResult.replace(/```json|```/g, '').trim();
+        const resultJson = JSON.parse(cleanJson);
+        
         setFormData(prev => ({
           ...prev,
-          brand: prev.brand || inferred.brand,
-          category: inferred.category,
-          routineStage: inferred.routineStage,
-          notes: inferred.notes,
-          size: prev.size || inferred.size,
-          purchaseLocation: prev.purchaseLocation || inferred.location,
-          tagsInput: prev.tagsInput || inferred.tags.join(' ')
+          brand: resultJson.brand || prev.brand,
+          category: resultJson.category || prev.category,
+          routineStage: resultJson.routineStage || prev.routineStage,
+          notes: resultJson.notes || prev.notes,
+          size: resultJson.size || prev.size,
+          price: resultJson.price || prev.price,
+          purchaseLocation: resultJson.purchaseLocation || prev.purchaseLocation,
+          tagsInput: resultJson.tags ? resultJson.tags.join(' ') : prev.tagsInput
         }));
-        setAiLoading(false);
-      }, 400);
-
+      }
     } catch (err) {
       console.error(err);
-      setAiError('自動分析完成');
+      setAiError('AI 查詢失敗，請手動填寫');
+    } finally {
       setAiLoading(false);
     }
   };
 
-  // Save Item
+  // Image scan (local preview only for now)
+  const handleImageScan = async (e) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    setOcrLoading(true);
+    setAiError('');
+
+    try {
+      const previewUrl = URL.createObjectURL(file);
+      setScanPreview(previewUrl);
+      setFormData(prev => ({ ...prev, imageUrl: previewUrl }));
+      setOcrLoading(false);
+    } catch (err) {
+      console.error(err);
+      setAiError('圖片載入失敗');
+      setOcrLoading(false);
+    }
+  };
+
   const handleSubmit = (e) => {
     e.preventDefault();
     if (!formData.name || !formData.expiryDate) return;
@@ -443,7 +366,6 @@ export default function App() {
     setIsModalOpen(false);
   };
 
-  // Quick Action: Mask Quantity Decrement
   const handleDecrementQuantity = (id) => {
     const todayStr = new Date().toISOString().split('T')[0];
     setItems(prev => prev.map(item => {
@@ -461,12 +383,10 @@ export default function App() {
     }));
   };
 
-  // Delete Item
   const handleDelete = (id) => {
     setItems(prev => prev.filter(i => i.id !== id));
   };
 
-  // Calculate Expiry Status & Days Left
   const getExpiryDetails = (expiryDateStr) => {
     if (!expiryDateStr) return { days: 999, status: 'normal' };
     const today = new Date();
@@ -480,7 +400,6 @@ export default function App() {
     return { days, status: 'good', label: `剩 ${days} 天` };
   };
 
-  // All hashtags list for filter bar
   const allHashtags = useMemo(() => {
     const set = new Set();
     items.forEach(item => {
@@ -491,7 +410,6 @@ export default function App() {
     return Array.from(set);
   }, [items]);
 
-  // Filtered & Sorted Items
   const filteredItems = useMemo(() => {
     let result = items.filter(item => {
       const matchesSearch = item.name.toLowerCase().includes(searchQuery.toLowerCase()) || 
@@ -522,7 +440,6 @@ export default function App() {
     return result;
   }, [items, searchQuery, filterStatus, filterCategory, filterTag, sortField, sortOrder]);
 
-  // Routine filtered items sorted by step order
   const routineItems = useMemo(() => {
     return items.filter(item => 
       item.status === 'in_use' && 
@@ -532,11 +449,8 @@ export default function App() {
 
   return (
     <div className="min-h-screen bg-[#faf9f6] text-stone-800 font-sans antialiased selection:bg-emerald-100 selection:text-emerald-900">
-      
-      {/* HEADER NAVBAR */}
       <header className="sticky top-0 z-30 bg-[#faf9f6]/80 backdrop-blur-md border-b border-stone-200/60 px-4 md:px-8 py-4">
         <div className="max-w-7xl mx-auto flex flex-col md:flex-row md:items-center justify-between gap-4">
-          
           <div className="flex items-center space-x-3">
             <div className="h-10 w-10 rounded-2xl bg-emerald-800 text-cream-50 flex items-center justify-center text-white shadow-sm">
               <Sparkles className="h-5 w-5" />
@@ -547,7 +461,6 @@ export default function App() {
             </div>
           </div>
 
-          {/* Navigation Tabs & Actions */}
           <div className="flex items-center justify-between md:justify-end gap-2 md:gap-3 flex-wrap">
             <div className="flex bg-stone-200/50 p-1 rounded-2xl border border-stone-200/40">
               <button
@@ -572,7 +485,6 @@ export default function App() {
               </button>
             </div>
 
-            {/* Sync Button */}
             <button
               onClick={handleOpenSyncModal}
               className="flex items-center space-x-1 bg-white hover:bg-stone-50 text-stone-700 border border-stone-200 px-3 py-2 rounded-2xl text-xs font-medium shadow-2xs transition-all active:scale-95"
@@ -582,7 +494,6 @@ export default function App() {
               <span className="hidden sm:inline">數據同步</span>
             </button>
 
-            {/* Add Product Button */}
             <button
               onClick={() => handleOpenModal()}
               className="flex items-center space-x-1 bg-stone-900 hover:bg-stone-800 text-white px-3.5 py-2 rounded-2xl text-xs font-medium shadow-sm transition-all active:scale-95"
@@ -591,22 +502,14 @@ export default function App() {
               <span>新增護膚品</span>
             </button>
           </div>
-
         </div>
       </header>
 
-      {/* MAIN CONTAINER */}
       <main className="max-w-7xl mx-auto px-4 md:px-8 py-6">
-
-        {/* --- INVENTORY TAB --- */}
         {activeTab === 'inventory' && (
           <div className="space-y-6">
-
-            {/* Filter & Search Toolbar */}
             <div className="bg-white p-4 rounded-3xl border border-stone-200/60 shadow-sm space-y-3">
               <div className="flex flex-col md:flex-row gap-3 items-center justify-between">
-                
-                {/* Search Bar */}
                 <div className="relative w-full md:w-80">
                   <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 h-4 w-4 text-stone-400" />
                   <input
@@ -618,10 +521,7 @@ export default function App() {
                   />
                 </div>
 
-                {/* Filters Row */}
                 <div className="flex flex-wrap items-center gap-2 w-full md:w-auto">
-                  
-                  {/* Status Filter */}
                   <select
                     value={filterStatus}
                     onChange={(e) => setFilterStatus(e.target.value)}
@@ -633,7 +533,6 @@ export default function App() {
                     <option value="finished">⚫ 已用完 Finished</option>
                   </select>
 
-                  {/* Category Filter */}
                   <select
                     value={filterCategory}
                     onChange={(e) => setFilterCategory(e.target.value)}
@@ -643,7 +542,6 @@ export default function App() {
                     {categories.map(c => <option key={c} value={c}>{c}</option>)}
                   </select>
 
-                  {/* Reset Filters */}
                   {(filterStatus !== 'all' || filterCategory !== 'all' || filterTag !== 'all' || searchQuery) && (
                     <button
                       onClick={() => {
@@ -658,11 +556,9 @@ export default function App() {
                       <RefreshCw className="h-3.5 w-3.5" />
                     </button>
                   )}
-
                 </div>
               </div>
 
-              {/* Filter Hashtag Bar */}
               {allHashtags.length > 0 && (
                 <div className="flex items-center gap-1.5 pt-2 border-t border-stone-100 overflow-x-auto no-scrollbar">
                   <span className="text-[11px] text-stone-400 font-medium whitespace-nowrap flex items-center gap-1">
@@ -695,7 +591,6 @@ export default function App() {
               )}
             </div>
 
-            {/* --- DATABASE TABLE VIEW --- */}
             <div className="bg-white rounded-3xl border border-stone-200/60 shadow-sm overflow-hidden">
               <div className="overflow-x-auto">
                 <table className="w-full text-left text-xs text-stone-700 border-collapse">
@@ -736,11 +631,8 @@ export default function App() {
                     ) : (
                       filteredItems.map((item) => {
                         const expiry = getExpiryDetails(item.expiryDate);
-
                         return (
                           <tr key={item.id} className="hover:bg-stone-50/60 transition-colors">
-                            
-                            {/* Product Name & Brand + Hashtags */}
                             <td className="py-3.5 px-4">
                               <div>
                                 <div 
@@ -752,8 +644,6 @@ export default function App() {
                                 <div className="text-[11px] text-stone-400 font-normal">
                                   {item.brand}
                                 </div>
-
-                                {/* Hashtags */}
                                 {Array.isArray(item.tags) && item.tags.length > 0 && (
                                   <div className="flex flex-wrap gap-1 mt-1">
                                     {item.tags.map(t => (
@@ -772,15 +662,11 @@ export default function App() {
                                 )}
                               </div>
                             </td>
-
-                            {/* Category */}
                             <td className="py-3.5 px-4 whitespace-nowrap">
                               <span className="px-2.5 py-1 bg-stone-100 text-stone-700 rounded-xl text-[11px] font-medium">
                                 {item.category}
                               </span>
                             </td>
-
-                            {/* Status */}
                             <td className="py-3.5 px-4 whitespace-nowrap">
                               {item.status === 'in_use' && (
                                 <span className="inline-flex items-center gap-1 text-[11px] font-medium text-emerald-800 bg-emerald-50 px-2 py-0.5 rounded-lg border border-emerald-200/60">
@@ -798,8 +684,6 @@ export default function App() {
                                 </span>
                               )}
                             </td>
-
-                            {/* Remaining Quantity */}
                             <td className="py-3.5 px-4 whitespace-nowrap">
                               {item.isMultiPack ? (
                                 <div className="flex flex-col items-start gap-1">
@@ -819,8 +703,6 @@ export default function App() {
                                 <span className="text-stone-500 font-medium">1 {item.unit}</span>
                               )}
                             </td>
-
-                            {/* Expiry Date */}
                             <td className="py-3.5 px-4 whitespace-nowrap">
                               <div>
                                 <div className="font-medium text-stone-800">{item.expiryDate || '-'}</div>
@@ -834,8 +716,6 @@ export default function App() {
                                 )}
                               </div>
                             </td>
-
-                            {/* Actions */}
                             <td className="py-3.5 px-4 whitespace-nowrap text-right">
                               <div className="flex items-center justify-end space-x-1">
                                 <button
@@ -854,7 +734,6 @@ export default function App() {
                                 </button>
                               </div>
                             </td>
-
                           </tr>
                         );
                       })
@@ -863,21 +742,16 @@ export default function App() {
                 </table>
               </div>
             </div>
-
           </div>
         )}
 
-        {/* --- ROUTINE TAB --- */}
         {activeTab === 'routine' && (
           <div className="space-y-6 max-w-4xl mx-auto">
-            
-            {/* AM / PM Toggle Header */}
             <div className="flex items-center justify-between bg-white p-4 rounded-3xl border border-stone-200/60 shadow-sm">
               <div>
                 <h2 className="text-lg font-medium text-stone-900">每日護膚保養流程</h2>
                 <p className="text-xs text-stone-500">按照早晚順序顯示使用中護膚品</p>
               </div>
-
               <div className="flex bg-stone-100 p-1 rounded-2xl">
                 <button
                   onClick={() => setRoutineTime('AM')}
@@ -904,7 +778,6 @@ export default function App() {
               </div>
             </div>
 
-            {/* Routine Flow Cards */}
             <div className="space-y-3">
               {routineItems.length === 0 ? (
                 <div className="bg-white p-12 text-center rounded-3xl border border-stone-200/60 text-stone-400">
@@ -912,218 +785,130 @@ export default function App() {
                   <p>尚無標記為【{routineTime}】且【使用中】的護膚品</p>
                 </div>
               ) : (
-                routineItems.map((item, index) => {
-                  return (
-                    <div 
-                      key={item.id}
-                      onClick={() => setSelectedProduct(item)}
-                      className="p-4 rounded-3xl border bg-white border-stone-200/60 shadow-sm flex items-center justify-between hover:border-emerald-800/40 hover:shadow-md cursor-pointer transition-all"
-                    >
-                      <div className="flex items-center space-x-4">
-                        {/* Step Order Badge */}
-                        <div className="h-8 w-8 rounded-2xl bg-emerald-50 text-emerald-800 font-mono text-xs font-semibold flex items-center justify-center border border-emerald-100 shrink-0">
-                          {index + 1}
-                        </div>
-
-                        <div>
-                          <div className="flex items-center space-x-2">
-                            <span className="text-xs font-medium text-emerald-800 bg-emerald-50 px-2 py-0.5 rounded-md">
-                              {item.category}
-                            </span>
-                            <span className="text-xs text-stone-400">{item.brand}</span>
-                          </div>
-                          <h3 className="font-semibold text-stone-900 mt-0.5 hover:text-emerald-800 transition-colors">
-                            {item.name}
-                          </h3>
-                          {item.notes && (
-                            <p className="text-xs text-stone-500 mt-0.5 line-clamp-1">{item.notes}</p>
-                          )}
-                        </div>
+                routineItems.map((item, index) => (
+                  <div 
+                    key={item.id}
+                    onClick={() => setSelectedProduct(item)}
+                    className="p-4 rounded-3xl border bg-white border-stone-200/60 shadow-sm flex items-center justify-between hover:border-emerald-800/40 hover:shadow-md cursor-pointer transition-all"
+                  >
+                    <div className="flex items-center space-x-4">
+                      <div className="h-8 w-8 rounded-2xl bg-emerald-50 text-emerald-800 font-mono text-xs font-semibold flex items-center justify-center border border-emerald-100 shrink-0">
+                        {index + 1}
                       </div>
-
-                      {/* Display Size Pill */}
-                      {item.size && (
-                        <span className="text-[11px] text-stone-400 bg-stone-50 px-2.5 py-1 rounded-xl border border-stone-200/50 font-medium shrink-0">
-                          {item.size}
-                        </span>
-                      )}
+                      <div>
+                        <div className="flex items-center space-x-2">
+                          <span className="text-xs font-medium text-emerald-800 bg-emerald-50 px-2 py-0.5 rounded-md">
+                            {item.category}
+                          </span>
+                          <span className="text-xs text-stone-400">{item.brand}</span>
+                        </div>
+                        <h3 className="font-semibold text-stone-900 mt-0.5 hover:text-emerald-800 transition-colors">
+                          {item.name}
+                        </h3>
+                        {item.notes && (
+                          <p className="text-xs text-stone-500 mt-0.5 line-clamp-1">{item.notes}</p>
+                        )}
+                      </div>
                     </div>
-                  );
-                })
+                    {item.size && (
+                      <span className="text-[11px] text-stone-400 bg-stone-50 px-2.5 py-1 rounded-xl border border-stone-200/50 font-medium shrink-0">
+                        {item.size}
+                      </span>
+                    )}
+                  </div>
+                ))
               )}
             </div>
-
           </div>
         )}
-
       </main>
 
-      {/* --- CROSS-DEVICE SYNC MODAL --- */}
       {isSyncModalOpen && (
         <div className="fixed inset-0 z-50 bg-stone-900/40 backdrop-blur-sm flex items-center justify-center p-4">
-          <div className="bg-white w-full max-w-lg rounded-3xl shadow-xl border border-stone-200 overflow-hidden flex flex-col animate-in fade-in zoom-in duration-200">
-            
-            {/* Modal Header */}
+          <div className="bg-white w-full max-w-lg rounded-3xl shadow-xl border border-stone-200 overflow-hidden flex flex-col">
             <div className="px-6 py-4 border-b border-stone-100 flex items-center justify-between bg-stone-50/60">
               <div className="flex items-center space-x-2">
                 <Cloud className="h-5 w-5 text-emerald-800" />
                 <h3 className="font-semibold text-stone-900">跨裝置數據同步 / 備份</h3>
               </div>
-              <button 
-                onClick={() => setIsSyncModalOpen(false)}
-                className="p-1 text-stone-400 hover:text-stone-700 rounded-full hover:bg-stone-200/50 transition-colors"
-              >
+              <button onClick={() => setIsSyncModalOpen(false)} className="p-1 text-stone-400 hover:text-stone-700 rounded-full hover:bg-stone-200/50">
                 <X className="h-5 w-5" />
               </button>
             </div>
-
-            {/* Modal Body */}
             <div className="p-6 space-y-4 text-xs">
-              
-              <p className="text-stone-500 leading-relaxed">
-                將 iPhone 的數據複製貼到 iPad，即可輕鬆在多部裝置間同步你的護膚品庫存。
-              </p>
-
-              {/* Action 1: One-click copy JSON */}
+              <p className="text-stone-500 leading-relaxed">將數據複製貼到另一部裝置，即可同步你的護膚品庫存。</p>
               <div className="p-3 bg-emerald-50/60 rounded-2xl border border-emerald-100 flex items-center justify-between">
                 <div>
                   <h4 className="font-medium text-emerald-950">方法 A：剪貼簿一鍵同步</h4>
-                  <p className="text-[11px] text-emerald-700">複製下方 JSON 文字，直接貼到另一部裝置</p>
+                  <p className="text-[11px] text-emerald-700">複製 JSON 文字貼到另一部裝置</p>
                 </div>
-                <button
-                  onClick={handleCopyJson}
-                  className="flex items-center gap-1 bg-emerald-800 hover:bg-emerald-700 text-white px-3 py-1.5 rounded-xl text-xs font-medium transition-all shadow-2xs"
-                >
+                <button onClick={handleCopyJson} className="flex items-center gap-1 bg-emerald-800 hover:bg-emerald-700 text-white px-3 py-1.5 rounded-xl text-xs font-medium">
                   {copySuccess ? <CheckCheck className="h-3.5 w-3.5" /> : <Copy className="h-3.5 w-3.5" />}
                   <span>{copySuccess ? '已複製！' : '複製 JSON'}</span>
                 </button>
               </div>
-
-              {/* Action 2: Download Backup file */}
               <div className="p-3 bg-stone-50 rounded-2xl border border-stone-200/60 flex items-center justify-between">
                 <div>
                   <h4 className="font-medium text-stone-800">方法 B：檔案備份</h4>
-                  <p className="text-[11px] text-stone-500">下載 JSON 檔案或從檔案匯入</p>
+                  <p className="text-[11px] text-stone-500">下載或上傳 JSON 檔案</p>
                 </div>
                 <div className="flex gap-2">
-                  <button
-                    onClick={handleExportFile}
-                    className="flex items-center gap-1 bg-white hover:bg-stone-100 text-stone-700 border border-stone-200 px-3 py-1.5 rounded-xl text-xs font-medium transition-all"
-                  >
+                  <button onClick={handleExportFile} className="flex items-center gap-1 bg-white hover:bg-stone-100 text-stone-700 border border-stone-200 px-3 py-1.5 rounded-xl text-xs font-medium">
                     <Download className="h-3.5 w-3.5" />
                     <span>下載備份</span>
                   </button>
-                  <button
-                    onClick={() => importFileRef.current?.click()}
-                    className="flex items-center gap-1 bg-white hover:bg-stone-100 text-stone-700 border border-stone-200 px-3 py-1.5 rounded-xl text-xs font-medium transition-all"
-                  >
+                  <button onClick={() => importFileRef.current?.click()} className="flex items-center gap-1 bg-white hover:bg-stone-100 text-stone-700 border border-stone-200 px-3 py-1.5 rounded-xl text-xs font-medium">
                     <Upload className="h-3.5 w-3.5" />
                     <span>上傳檔案</span>
                   </button>
-                  <input
-                    type="file"
-                    ref={importFileRef}
-                    accept=".json"
-                    onChange={handleFileUpload}
-                    className="hidden"
-                  />
+                  <input type="file" ref={importFileRef} accept=".json" onChange={handleFileUpload} className="hidden" />
                 </div>
               </div>
-
-              {/* Text Area for Manual Paste / Sync */}
               <div className="space-y-1">
-                <label className="block text-stone-600 font-medium">數據 JSON 代碼（可於此處貼上由另一裝置複製的代碼）：</label>
+                <label className="block text-stone-600 font-medium">數據 JSON 代碼：</label>
                 <textarea
                   rows="4"
                   value={jsonText}
                   onChange={(e) => setJsonText(e.target.value)}
-                  className="w-full px-3 py-2 bg-stone-50 border border-stone-200 rounded-xl font-mono text-[11px] text-stone-700 focus:ring-2 focus:ring-emerald-800/20 focus:border-emerald-800 outline-none resize-none"
+                  className="w-full px-3 py-2 bg-stone-50 border border-stone-200 rounded-xl font-mono text-[11px] text-stone-700 focus:ring-2 focus:ring-emerald-800/20 outline-none resize-none"
                 />
               </div>
-
               {syncStatusMsg && (
-                <p className="text-xs font-medium text-stone-800 bg-stone-100 p-2.5 rounded-xl border border-stone-200">
-                  {syncStatusMsg}
-                </p>
+                <p className="text-xs font-medium text-stone-800 bg-stone-100 p-2.5 rounded-xl border border-stone-200">{syncStatusMsg}</p>
               )}
-
-              {/* Submit Sync */}
               <div className="pt-2 flex items-center justify-end gap-2">
-                <button
-                  type="button"
-                  onClick={() => setIsSyncModalOpen(false)}
-                  className="px-4 py-2 rounded-xl border border-stone-200 text-stone-600 font-medium hover:bg-stone-50 transition-all"
-                >
-                  關閉
-                </button>
-                <button
-                  type="button"
-                  onClick={handleImportText}
-                  className="px-5 py-2 rounded-xl bg-stone-900 text-white font-medium hover:bg-stone-800 transition-all shadow-sm active:scale-95"
-                >
-                  匯入此數據
-                </button>
+                <button type="button" onClick={() => setIsSyncModalOpen(false)} className="px-4 py-2 rounded-xl border border-stone-200 text-stone-600 font-medium hover:bg-stone-50">關閉</button>
+                <button type="button" onClick={handleImportText} className="px-5 py-2 rounded-xl bg-stone-900 text-white font-medium hover:bg-stone-800">匯入此數據</button>
               </div>
-
             </div>
-
           </div>
         </div>
       )}
 
-      {/* --- PRODUCT DETAILS MODAL (POPUP CARD) --- */}
       {selectedProduct && (
         <div className="fixed inset-0 z-50 bg-stone-900/40 backdrop-blur-sm flex items-center justify-center p-4">
-          <div className="bg-white w-full max-w-md rounded-3xl shadow-xl border border-stone-200 overflow-hidden flex flex-col animate-in fade-in zoom-in duration-200">
-            
-            {/* Modal Header */}
+          <div className="bg-white w-full max-w-md rounded-3xl shadow-xl border border-stone-200 overflow-hidden flex flex-col">
             <div className="px-6 py-4 border-b border-stone-100 flex items-center justify-between bg-stone-50/60">
-              <span className="px-2.5 py-1 bg-emerald-50 text-emerald-800 rounded-xl text-xs font-medium border border-emerald-200/60">
-                {selectedProduct.category}
-              </span>
-              <button 
-                onClick={() => setSelectedProduct(null)}
-                className="p-1 text-stone-400 hover:text-stone-700 rounded-full hover:bg-stone-200/50 transition-colors"
-              >
-                <X className="h-5 w-5" />
-              </button>
+              <span className="px-2.5 py-1 bg-emerald-50 text-emerald-800 rounded-xl text-xs font-medium border border-emerald-200/60">{selectedProduct.category}</span>
+              <button onClick={() => setSelectedProduct(null)} className="p-1 text-stone-400 hover:text-stone-700 rounded-full hover:bg-stone-200/50"><X className="h-5 w-5" /></button>
             </div>
-
-            {/* Modal Body */}
             <div className="p-6 space-y-4 text-xs max-h-[80vh] overflow-y-auto">
-              
-              {/* Image & Main Info Header */}
               <div className="flex items-start space-x-4">
                 {selectedProduct.imageUrl && (
-                  <img 
-                    src={selectedProduct.imageUrl} 
-                    alt={selectedProduct.name}
-                    className="h-20 w-20 object-cover rounded-2xl border border-stone-200 shadow-sm shrink-0" 
-                  />
+                  <img src={selectedProduct.imageUrl} alt={selectedProduct.name} className="h-20 w-20 object-cover rounded-2xl border border-stone-200 shadow-sm shrink-0" />
                 )}
-                
                 <div className="flex-1">
-                  <h3 className="text-base font-bold text-stone-900 leading-snug">
-                    {selectedProduct.name}
-                  </h3>
-                  <p className="text-stone-500 text-xs mt-0.5 font-medium">
-                    品牌：{selectedProduct.brand || '未填寫'}
-                  </p>
-
-                  {/* Tags */}
+                  <h3 className="text-base font-bold text-stone-900 leading-snug">{selectedProduct.name}</h3>
+                  <p className="text-stone-500 text-xs mt-0.5 font-medium">品牌：{selectedProduct.brand || '未填寫'}</p>
                   {Array.isArray(selectedProduct.tags) && selectedProduct.tags.length > 0 && (
                     <div className="flex flex-wrap gap-1 mt-2">
                       {selectedProduct.tags.map(t => (
-                        <span key={t} className="text-[10px] text-emerald-800 bg-emerald-50 px-2 py-0.5 rounded-lg border border-emerald-100 font-medium">
-                          {t}
-                        </span>
+                        <span key={t} className="text-[10px] text-emerald-800 bg-emerald-50 px-2 py-0.5 rounded-lg border border-emerald-100 font-medium">{t}</span>
                       ))}
                     </div>
                   )}
                 </div>
               </div>
-
-              {/* Metadata Grid */}
               <div className="grid grid-cols-2 gap-2 text-stone-600">
                 <div className="p-2.5 bg-stone-50 rounded-xl border border-stone-100">
                   <span className="text-[10px] text-stone-400 block">容量 Size</span>
@@ -1131,40 +916,30 @@ export default function App() {
                 </div>
                 <div className="p-2.5 bg-stone-50 rounded-xl border border-stone-100">
                   <span className="text-[10px] text-stone-400 block">價格 Price</span>
-                  <span className="font-medium text-stone-800">
-                    {selectedProduct.price ? `HKD $${selectedProduct.price}` : '-'}
-                  </span>
+                  <span className="font-medium text-stone-800">{selectedProduct.price ? `HKD $${selectedProduct.price}` : '-'}</span>
                 </div>
                 <div className="p-2.5 bg-stone-50 rounded-xl border border-stone-100">
-                  <span className="text-[10px] text-stone-400 block">買入日期 Purchased</span>
+                  <span className="text-[10px] text-stone-400 block">買入日期</span>
                   <span className="font-medium text-stone-800">{selectedProduct.purchaseDate || '-'}</span>
                 </div>
                 <div className="p-2.5 bg-stone-50 rounded-xl border border-stone-100">
-                  <span className="text-[10px] text-stone-400 block">購買地點 Location</span>
+                  <span className="text-[10px] text-stone-400 block">購買地點</span>
                   <span className="font-medium text-stone-800">{selectedProduct.purchaseLocation || '-'}</span>
                 </div>
               </div>
-
-              {/* Multi-pack counter details */}
               {selectedProduct.isMultiPack && (
                 <div className="p-3 bg-emerald-50/50 rounded-2xl border border-emerald-100 flex items-center justify-between">
-                  <span className="text-stone-600 font-medium">盒裝 / 多件裝剩餘數量:</span>
-                  <span className="font-bold text-emerald-900 text-sm">
-                    {selectedProduct.remainingQuantity} / {selectedProduct.totalQuantity} {selectedProduct.unit}
-                  </span>
+                  <span className="text-stone-600 font-medium">剩餘數量:</span>
+                  <span className="font-bold text-emerald-900 text-sm">{selectedProduct.remainingQuantity} / {selectedProduct.totalQuantity} {selectedProduct.unit}</span>
                 </div>
               )}
-
-              {/* Notes */}
               {selectedProduct.notes && (
                 <div className="p-3 bg-stone-50 rounded-2xl border border-stone-100 space-y-1">
                   <span className="text-[10px] text-stone-400 font-medium block">備註 / 使用心得</span>
                   <p className="text-stone-700 leading-relaxed text-xs">{selectedProduct.notes}</p>
                 </div>
               )}
-
-              {/* Action Buttons */}
-              <div className="pt-2 flex items-center justify-end gap-2">
+              <div className="pt-2">
                 <button
                   type="button"
                   onClick={() => {
@@ -1172,187 +947,91 @@ export default function App() {
                     setSelectedProduct(null);
                     handleOpenModal(target);
                   }}
-                  className="w-full py-2.5 rounded-2xl bg-stone-900 text-white font-medium hover:bg-stone-800 transition-all shadow-sm flex items-center justify-center gap-1.5 active:scale-95 text-xs"
+                  className="w-full py-2.5 rounded-2xl bg-stone-900 text-white font-medium hover:bg-stone-800 flex items-center justify-center gap-1.5 text-xs"
                 >
                   <Edit3 className="h-3.5 w-3.5" />
                   <span>編輯此產品資料</span>
                 </button>
               </div>
-
             </div>
-
           </div>
         </div>
       )}
 
-      {/* --- ADD / EDIT MODAL --- */}
       {isModalOpen && (
         <div className="fixed inset-0 z-50 bg-stone-900/40 backdrop-blur-sm flex items-center justify-center p-4">
-          <div className="bg-white w-full max-w-lg max-h-[90vh] rounded-3xl shadow-xl border border-stone-200 overflow-hidden flex flex-col animate-in fade-in zoom-in duration-200">
-            
-            {/* Modal Fixed Header */}
+          <div className="bg-white w-full max-w-lg max-h-[90vh] rounded-3xl shadow-xl border border-stone-200 overflow-hidden flex flex-col">
             <div className="px-6 py-4 border-b border-stone-100 flex items-center justify-between bg-stone-50/50 shrink-0">
-              <h2 className="font-semibold text-stone-900">
-                {editingId ? '編輯護膚品資料' : '新增護膚品'}
-              </h2>
-              <button 
-                onClick={() => setIsModalOpen(false)}
-                className="p-1 text-stone-400 hover:text-stone-700 rounded-full hover:bg-stone-200/50 transition-colors"
-              >
-                <X className="h-5 w-5" />
-              </button>
+              <h2 className="font-semibold text-stone-900">{editingId ? '編輯護膚品資料' : '新增護膚品'}</h2>
+              <button onClick={() => setIsModalOpen(false)} className="p-1 text-stone-400 hover:text-stone-700 rounded-full hover:bg-stone-200/50"><X className="h-5 w-5" /></button>
             </div>
-
-            {/* Modal Scrollable Body */}
             <form onSubmit={handleSubmit} className="flex-1 overflow-y-auto p-6 space-y-4 text-xs">
-              
-              {/* AI & Camera Action Bar */}
               <div className="p-3 bg-emerald-50/70 border border-emerald-200/60 rounded-2xl space-y-2">
                 <div className="flex items-center justify-between">
                   <span className="text-emerald-900 font-medium flex items-center gap-1 text-xs">
-                    <Sparkles className="h-3.5 w-3.5 text-emerald-700" /> 智能自動補全與快辨
+                    <Sparkles className="h-3.5 w-3.5 text-emerald-700" /> Grok AI 智能補全
                   </span>
-                  
-                  {/* Camera / OCR File Upload Button */}
-                  <button
-                    type="button"
-                    onClick={() => fileInputRef.current?.click()}
-                    disabled={ocrLoading}
-                    className="flex items-center space-x-1 text-[11px] bg-white text-stone-700 border border-stone-200 px-2.5 py-1 rounded-xl shadow-sm hover:bg-stone-50 transition-all"
-                  >
+                  <button type="button" onClick={() => fileInputRef.current?.click()} disabled={ocrLoading} className="flex items-center space-x-1 text-[11px] bg-white text-stone-700 border border-stone-200 px-2.5 py-1 rounded-xl shadow-sm">
                     <Camera className="h-3.5 w-3.5 text-emerald-700" />
-                    <span>{ocrLoading ? '照片解析中...' : '相機/圖片 OCR 辨識'}</span>
+                    <span>{ocrLoading ? '載入中...' : '上傳圖片'}</span>
                   </button>
-                  <input
-                    type="file"
-                    ref={fileInputRef}
-                    accept="image/*"
-                    onChange={handleImageScan}
-                    className="hidden"
-                  />
+                  <input type="file" ref={fileInputRef} accept="image/*" onChange={handleImageScan} className="hidden" />
                 </div>
-
                 {scanPreview && (
                   <div className="flex items-center space-x-2 pt-1">
-                    <img src={scanPreview} alt="Scan preview" className="h-10 w-10 object-cover rounded-lg border" />
-                    <span className="text-[10px] text-stone-500">已載入包裝照片進行解析</span>
+                    <img src={scanPreview} alt="Preview" className="h-10 w-10 object-cover rounded-lg border" />
+                    <span className="text-[10px] text-stone-500">已載入圖片</span>
                   </div>
                 )}
-
-                <div className="flex gap-2 pt-1">
-                  <button
-                    type="button"
-                    onClick={handleAiLookup}
-                    disabled={aiLoading}
-                    className="flex-1 py-1.5 px-3 bg-emerald-800 text-white rounded-xl text-xs font-medium hover:bg-emerald-700 transition-all shadow-2xs flex items-center justify-center gap-1.5 disabled:opacity-50"
-                  >
-                    <Sparkles className="h-3.5 w-3.5" />
-                    <span>{aiLoading ? '正在智能補全...' : '智能填寫品牌/類別/備註'}</span>
-                  </button>
-                </div>
-
-                {aiError && (
-                  <p className="text-[10px] text-amber-700 bg-amber-50 px-2.5 py-1 rounded-lg border border-amber-200/60">
-                    {aiError}
-                  </p>
-                )}
+                <button type="button" onClick={handleAiLookup} disabled={aiLoading} className="w-full py-1.5 bg-emerald-800 hover:bg-emerald-700 text-white rounded-xl text-xs font-medium flex items-center justify-center gap-1.5 disabled:opacity-50">
+                  <Sparkles className="h-3.5 w-3.5" />
+                  <span>{aiLoading ? 'Grok 分析中...' : 'Grok AI 智能填寫'}</span>
+                </button>
+                {aiError && <p className="text-[10px] text-amber-700 bg-amber-50 px-2.5 py-1 rounded-lg border border-amber-200/60">{aiError}</p>}
               </div>
 
-              {/* Image URL / Upload Field */}
               <div className="space-y-1">
                 <label className="block text-stone-600 font-medium">產品圖片連結 (Image URL)</label>
-                <input
-                  type="text"
-                  name="imageUrl"
-                  placeholder="可貼上圖片網址，或使用上方拍照/上傳圖片功能"
-                  value={formData.imageUrl}
-                  onChange={handleInputChange}
-                  className="w-full px-3 py-2 bg-white border border-stone-200 rounded-xl focus:ring-2 focus:ring-emerald-800/20 focus:border-emerald-800 outline-none"
-                />
+                <input type="text" name="imageUrl" placeholder="可貼上圖片網址" value={formData.imageUrl} onChange={handleInputChange} className="w-full px-3 py-2 bg-white border border-stone-200 rounded-xl focus:ring-2 focus:ring-emerald-800/20 outline-none" />
               </div>
 
-              {/* Product Name & Brand */}
               <div className="grid grid-cols-2 gap-3">
                 <div>
                   <label className="block text-stone-600 font-medium mb-1">護膚品名稱 Name *</label>
-                  <input
-                    type="text"
-                    name="name"
-                    required
-                    placeholder="例: 金盞花植物精華爽膚水"
-                    value={formData.name}
-                    onChange={handleInputChange}
-                    className="w-full px-3 py-2 bg-white border border-stone-200 rounded-xl focus:ring-2 focus:ring-emerald-800/20 focus:border-emerald-800 outline-none"
-                  />
+                  <input type="text" name="name" required placeholder="例: 金盞花植物精華爽膚水" value={formData.name} onChange={handleInputChange} className="w-full px-3 py-2 bg-white border border-stone-200 rounded-xl focus:ring-2 focus:ring-emerald-800/20 outline-none" />
                 </div>
                 <div>
                   <label className="block text-stone-600 font-medium mb-1">品牌 Brand</label>
-                  <input
-                    type="text"
-                    name="brand"
-                    placeholder="例: Kiehl's"
-                    value={formData.brand}
-                    onChange={handleInputChange}
-                    className="w-full px-3 py-2 bg-white border border-stone-200 rounded-xl focus:ring-2 focus:ring-emerald-800/20 focus:border-emerald-800 outline-none"
-                  />
+                  <input type="text" name="brand" placeholder="例: Kiehl's" value={formData.brand} onChange={handleInputChange} className="w-full px-3 py-2 bg-white border border-stone-200 rounded-xl focus:ring-2 focus:ring-emerald-800/20 outline-none" />
                 </div>
               </div>
 
-              {/* Hashtag Field & Quick Pills */}
               <div className="space-y-1.5">
-                <label className="block text-stone-600 font-medium">標籤 / Hashtags (用空格或逗號分隔)</label>
-                <input
-                  type="text"
-                  name="tagsInput"
-                  placeholder="例: #敏感肌必備 #空瓶回購 #保濕急救"
-                  value={formData.tagsInput}
-                  onChange={handleInputChange}
-                  className="w-full px-3 py-2 bg-white border border-stone-200 rounded-xl focus:ring-2 focus:ring-emerald-800/20 focus:border-emerald-800 outline-none"
-                />
-                
-                {/* Preset Tag Pills */}
+                <label className="block text-stone-600 font-medium">標籤 / Hashtags</label>
+                <input type="text" name="tagsInput" placeholder="例: #敏感肌必備 #空瓶回購" value={formData.tagsInput} onChange={handleInputChange} className="w-full px-3 py-2 bg-white border border-stone-200 rounded-xl focus:ring-2 focus:ring-emerald-800/20 outline-none" />
                 <div className="flex flex-wrap gap-1.5 pt-0.5">
                   <span className="text-[10px] text-stone-400 self-center">快捷標籤：</span>
                   {presetTags.map(tag => (
-                    <button
-                      key={tag}
-                      type="button"
-                      onClick={() => {
-                        const current = formData.tagsInput.trim();
-                        if (!current.includes(tag)) {
-                          setFormData(prev => ({ ...prev, tagsInput: current ? `${current} ${tag}` : tag }));
-                        }
-                      }}
-                      className="text-[10px] px-2 py-0.5 rounded-full bg-stone-100 hover:bg-emerald-50 text-stone-600 border border-stone-200/60 transition-colors"
-                    >
-                      + {tag}
-                    </button>
+                    <button key={tag} type="button" onClick={() => {
+                      const current = formData.tagsInput.trim();
+                      if (!current.includes(tag)) {
+                        setFormData(prev => ({ ...prev, tagsInput: current ? `${current} ${tag}` : tag }));
+                      }
+                    }} className="text-[10px] px-2 py-0.5 rounded-full bg-stone-100 hover:bg-emerald-50 text-stone-600 border border-stone-200/60">+ {tag}</button>
                   ))}
                 </div>
               </div>
 
-              {/* Category & Routine Stage */}
               <div className="grid grid-cols-2 gap-3">
                 <div>
                   <label className="block text-stone-600 font-medium mb-1">保養類別 Category</label>
-                  <select
-                    name="category"
-                    value={formData.category}
-                    onChange={handleInputChange}
-                    className="w-full px-3 py-2 bg-white border border-stone-200 rounded-xl focus:ring-2 focus:ring-emerald-800/20 focus:border-emerald-800 outline-none"
-                  >
+                  <select name="category" value={formData.category} onChange={handleInputChange} className="w-full px-3 py-2 bg-white border border-stone-200 rounded-xl focus:ring-2 focus:ring-emerald-800/20 outline-none">
                     {categories.map(c => <option key={c} value={c}>{c}</option>)}
                   </select>
                 </div>
-
                 <div>
                   <label className="block text-stone-600 font-medium mb-1">護膚流程時段 Stage</label>
-                  <select
-                    name="routineStage"
-                    value={formData.routineStage}
-                    onChange={handleInputChange}
-                    className="w-full px-3 py-2 bg-white border border-stone-200 rounded-xl focus:ring-2 focus:ring-emerald-800/20 focus:border-emerald-800 outline-none"
-                  >
+                  <select name="routineStage" value={formData.routineStage} onChange={handleInputChange} className="w-full px-3 py-2 bg-white border border-stone-200 rounded-xl focus:ring-2 focus:ring-emerald-800/20 outline-none">
                     <option value="AM">☀️ 早晨 AM Routine</option>
                     <option value="PM">🌙 晚間 PM Routine</option>
                     <option value="AM/PM">☀️🌙 日夜皆可用</option>
@@ -1361,200 +1040,89 @@ export default function App() {
                 </div>
               </div>
 
-              {/* Size & Price Fields */}
               <div className="grid grid-cols-2 gap-3">
                 <div>
                   <label className="block text-stone-600 font-medium mb-1">容量 / 規格 Size</label>
-                  <input
-                    type="text"
-                    name="size"
-                    placeholder="例: 50ml / 100g"
-                    value={formData.size}
-                    onChange={handleInputChange}
-                    className="w-full px-3 py-2 bg-white border border-stone-200 rounded-xl focus:ring-2 focus:ring-emerald-800/20 focus:border-emerald-800 outline-none"
-                  />
+                  <input type="text" name="size" placeholder="例: 50ml" value={formData.size} onChange={handleInputChange} className="w-full px-3 py-2 bg-white border border-stone-200 rounded-xl focus:ring-2 focus:ring-emerald-800/20 outline-none" />
                 </div>
                 <div>
                   <label className="block text-stone-600 font-medium mb-1">價格 Price (HKD $)</label>
-                  <input
-                    type="number"
-                    name="price"
-                    placeholder="例: 350"
-                    value={formData.price}
-                    onChange={handleInputChange}
-                    className="w-full px-3 py-2 bg-white border border-stone-200 rounded-xl focus:ring-2 focus:ring-emerald-800/20 focus:border-emerald-800 outline-none"
-                  />
+                  <input type="number" name="price" placeholder="例: 350" value={formData.price} onChange={handleInputChange} className="w-full px-3 py-2 bg-white border border-stone-200 rounded-xl focus:ring-2 focus:ring-emerald-800/20 outline-none" />
                 </div>
               </div>
 
-              {/* Expiry & Purchase Dates */}
               <div className="grid grid-cols-2 gap-3">
                 <div>
                   <label className="block text-stone-600 font-medium mb-1">買入日期 Purchase Date</label>
-                  <input
-                    type="date"
-                    name="purchaseDate"
-                    value={formData.purchaseDate}
-                    onChange={handleInputChange}
-                    className="w-full px-3 py-2 bg-white border border-stone-200 rounded-xl focus:ring-2 focus:ring-emerald-800/20 focus:border-emerald-800 outline-none"
-                  />
+                  <input type="date" name="purchaseDate" value={formData.purchaseDate} onChange={handleInputChange} className="w-full px-3 py-2 bg-white border border-stone-200 rounded-xl focus:ring-2 focus:ring-emerald-800/20 outline-none" />
                 </div>
                 <div>
                   <label className="block text-stone-600 font-medium mb-1">到期日 Expiry Date *</label>
-                  <input
-                    type="date"
-                    name="expiryDate"
-                    required
-                    value={formData.expiryDate}
-                    onChange={handleInputChange}
-                    className="w-full px-3 py-2 bg-white border border-stone-200 rounded-xl focus:ring-2 focus:ring-emerald-800/20 focus:border-emerald-800 outline-none"
-                  />
+                  <input type="date" name="expiryDate" required value={formData.expiryDate} onChange={handleInputChange} className="w-full px-3 py-2 bg-white border border-stone-200 rounded-xl focus:ring-2 focus:ring-emerald-800/20 outline-none" />
                 </div>
               </div>
 
-              {/* Purchase Location Field & Quick Pills */}
               <div className="space-y-1.5">
-                <label className="block text-stone-600 font-medium">購買地點 / 渠道 Purchase Location</label>
-                <input
-                  type="text"
-                  name="purchaseLocation"
-                  placeholder="例: Sephora / 莎莎 / 日本藥妝 / 專櫃"
-                  value={formData.purchaseLocation}
-                  onChange={handleInputChange}
-                  className="w-full px-3 py-2 bg-white border border-stone-200 rounded-xl focus:ring-2 focus:ring-emerald-800/20 focus:border-emerald-800 outline-none"
-                />
-                
-                {/* Location Quick-Pills */}
+                <label className="block text-stone-600 font-medium">購買地點 / 渠道</label>
+                <input type="text" name="purchaseLocation" placeholder="例: Sephora / 莎莎" value={formData.purchaseLocation} onChange={handleInputChange} className="w-full px-3 py-2 bg-white border border-stone-200 rounded-xl focus:ring-2 focus:ring-emerald-800/20 outline-none" />
                 <div className="flex flex-wrap gap-1.5 pt-0.5">
                   <span className="text-[10px] text-stone-400 self-center">快速選擇：</span>
                   {presetLocations.map(loc => (
-                    <button
-                      key={loc}
-                      type="button"
-                      onClick={() => setFormData(prev => ({ ...prev, purchaseLocation: loc }))}
-                      className={`text-[10px] px-2 py-0.5 rounded-full transition-colors border ${
-                        formData.purchaseLocation === loc
-                          ? 'bg-emerald-800 text-white border-emerald-800'
-                          : 'bg-stone-100 hover:bg-emerald-50 text-stone-600 border-stone-200/60'
-                      }`}
-                    >
-                      {loc}
-                    </button>
+                    <button key={loc} type="button" onClick={() => setFormData(prev => ({ ...prev, purchaseLocation: loc }))} className={`text-[10px] px-2 py-0.5 rounded-full transition-colors border ${formData.purchaseLocation === loc ? 'bg-emerald-800 text-white border-emerald-800' : 'bg-stone-100 hover:bg-emerald-50 text-stone-600 border-stone-200/60'}`}>{loc}</button>
                   ))}
                 </div>
               </div>
 
-              {/* Finished Date */}
               <div>
                 <label className="block text-stone-600 font-medium mb-1">用完日期 Finished Date</label>
-                <input
-                  type="date"
-                  name="finishedDate"
-                  value={formData.finishedDate}
-                  onChange={handleInputChange}
-                  className="w-full px-3 py-2 bg-white border border-stone-200 rounded-xl focus:ring-2 focus:ring-emerald-800/20 focus:border-emerald-800 outline-none"
-                />
+                <input type="date" name="finishedDate" value={formData.finishedDate} onChange={handleInputChange} className="w-full px-3 py-2 bg-white border border-stone-200 rounded-xl focus:ring-2 focus:ring-emerald-800/20 outline-none" />
               </div>
 
-              {/* Status Selector */}
               <div>
                 <label className="block text-stone-600 font-medium mb-1">當前狀態 Status</label>
-                <select
-                  name="status"
-                  value={formData.status}
-                  onChange={handleInputChange}
-                  className="w-full px-3 py-2 bg-white border border-stone-200 rounded-xl focus:ring-2 focus:ring-emerald-800/20 focus:border-emerald-800 outline-none"
-                >
+                <select name="status" value={formData.status} onChange={handleInputChange} className="w-full px-3 py-2 bg-white border border-stone-200 rounded-xl focus:ring-2 focus:ring-emerald-800/20 outline-none">
                   <option value="unopened">⚪ 未開封 Unopened</option>
                   <option value="in_use">🟢 使用中 In Use</option>
                   <option value="finished">⚫ 已用完 Finished</option>
                 </select>
               </div>
 
-              {/* Multi-Pack Options */}
               <div className="p-3 bg-stone-50 rounded-2xl space-y-2 border border-stone-200/60">
                 <label className="flex items-center gap-2 font-medium text-stone-700 cursor-pointer">
-                  <input
-                    type="checkbox"
-                    name="isMultiPack"
-                    checked={formData.isMultiPack}
-                    onChange={handleInputChange}
-                    className="rounded text-emerald-800 focus:ring-emerald-800"
-                  />
-                  屬於多件裝 / 面膜盒裝 (Multi-pack)
+                  <input type="checkbox" name="isMultiPack" checked={formData.isMultiPack} onChange={handleInputChange} className="rounded text-emerald-800 focus:ring-emerald-800" />
+                  屬於多件裝 / 面膜盒裝
                 </label>
-
                 {formData.isMultiPack && (
                   <div className="grid grid-cols-3 gap-2 pt-1">
                     <div>
                       <label className="block text-stone-500 text-[10px]">總數量</label>
-                      <input
-                        type="number"
-                        name="totalQuantity"
-                        value={formData.totalQuantity}
-                        onChange={handleInputChange}
-                        className="w-full px-2 py-1 bg-white border border-stone-200 rounded-lg outline-none"
-                      />
+                      <input type="number" name="totalQuantity" value={formData.totalQuantity} onChange={handleInputChange} className="w-full px-2 py-1 bg-white border border-stone-200 rounded-lg outline-none" />
                     </div>
                     <div>
                       <label className="block text-stone-500 text-[10px]">剩餘數量</label>
-                      <input
-                        type="number"
-                        name="remainingQuantity"
-                        value={formData.remainingQuantity}
-                        onChange={handleInputChange}
-                        className="w-full px-2 py-1 bg-white border border-stone-200 rounded-lg outline-none"
-                      />
+                      <input type="number" name="remainingQuantity" value={formData.remainingQuantity} onChange={handleInputChange} className="w-full px-2 py-1 bg-white border border-stone-200 rounded-lg outline-none" />
                     </div>
                     <div>
-                      <label className="block text-stone-500 text-[10px]">單位 (塊/支)</label>
-                      <input
-                        type="text"
-                        name="unit"
-                        value={formData.unit}
-                        onChange={handleInputChange}
-                        className="w-full px-2 py-1 bg-white border border-stone-200 rounded-lg outline-none"
-                      />
+                      <label className="block text-stone-500 text-[10px]">單位</label>
+                      <input type="text" name="unit" value={formData.unit} onChange={handleInputChange} className="w-full px-2 py-1 bg-white border border-stone-200 rounded-lg outline-none" />
                     </div>
                   </div>
                 )}
               </div>
 
-              {/* Notes */}
               <div>
                 <label className="block text-stone-600 font-medium mb-1">備註 / 使用心得 Notes</label>
-                <textarea
-                  name="notes"
-                  rows="2"
-                  placeholder="簡短記錄使用心得、功效亮點或質地..."
-                  value={formData.notes}
-                  onChange={handleInputChange}
-                  className="w-full px-3 py-2 bg-white border border-stone-200 rounded-xl focus:ring-2 focus:ring-emerald-800/20 focus:border-emerald-800 outline-none resize-none"
-                />
+                <textarea name="notes" rows="2" placeholder="簡短記錄使用心得..." value={formData.notes} onChange={handleInputChange} className="w-full px-3 py-2 bg-white border border-stone-200 rounded-xl focus:ring-2 focus:ring-emerald-800/20 outline-none resize-none" />
               </div>
 
-              {/* Form Buttons - Sticky Bottom */}
               <div className="sticky bottom-0 bg-white pt-3 pb-1 border-t border-stone-100 flex items-center justify-end gap-2">
-                <button
-                  type="button"
-                  onClick={() => setIsModalOpen(false)}
-                  className="px-4 py-2 rounded-xl border border-stone-200 text-stone-600 font-medium hover:bg-stone-50 transition-all"
-                >
-                  取消
-                </button>
-                <button
-                  type="submit"
-                  className="px-5 py-2 rounded-xl bg-stone-900 text-white font-medium hover:bg-stone-800 transition-all shadow-sm active:scale-95"
-                >
-                  儲存資料
-                </button>
+                <button type="button" onClick={() => setIsModalOpen(false)} className="px-4 py-2 rounded-xl border border-stone-200 text-stone-600 font-medium hover:bg-stone-50">取消</button>
+                <button type="submit" className="px-5 py-2 rounded-xl bg-stone-900 text-white font-medium hover:bg-stone-800">儲存資料</button>
               </div>
-
             </form>
           </div>
         </div>
       )}
-
     </div>
   );
 }
