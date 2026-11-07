@@ -18,6 +18,32 @@ const firebaseConfig = {
 const app = initializeApp(firebaseConfig);
 const db = getFirestore(app);
 
+const compressImage = (file, maxWidth = 800, quality = 0.7) => {
+  return new Promise((resolve) => {
+    const reader = new FileReader();
+    reader.onload = (e) => {
+      const img = new Image();
+      img.onload = () => {
+        const canvas = document.createElement('canvas');
+        let width = img.width;
+        let height = img.height;
+        if (width > maxWidth) {
+          height = (height * maxWidth) / width;
+          width = maxWidth;
+        }
+        canvas.width = width;
+        canvas.height = height;
+        const ctx = canvas.getContext('2d');
+        ctx.drawImage(img, 0, 0, width, height);
+        const compressed = canvas.toDataURL('image/jpeg', quality);
+        resolve(compressed);
+      };
+      img.src = e.target.result;
+    };
+    reader.readAsDataURL(file);
+  });
+};
+
 export default function App() {
   const [items, setItems] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -37,6 +63,7 @@ export default function App() {
   const [aiError, setAiError] = useState('');
   const [scanPreview, setScanPreview] = useState(null);
   const [imageBase64, setImageBase64] = useState(null);
+  const [compressing, setCompressing] = useState(false);
   const fileInputRef = useRef(null);
 
   const initialFormState = {
@@ -48,7 +75,7 @@ export default function App() {
 
   const [formData, setFormData] = useState(initialFormState);
   const presetTags = ['#敏感肌必備', '#空瓶回購', '#平價替代', '#抗衰老', '#急救修復', '#控油祛痘', '#美白提亮', '#保濕補水'];
-  const presetLocations = ['專櫃', '莎莎', 'HKTVMall', 'Sephora', '松本清', 'Donki', '官網', 'Olive Young', 'Green Price'];
+  const presetLocations = ['專櫃', '莎莎', '卓悅', 'Sephora', '松本清', 'Donki', '官網', 'Olive Young', 'HKTVMall', 'Green Price'];
   const categories = ['Cleanser 洗面', 'Toner 爽膚水', 'Serum 精華', 'Moisturizer 乳液面霜', 'Eye Cream 眼霜', 'Mask 面膜', 'Sunscreen 防曬', 'Hair 頭髮護理', 'Bodycare 身體護理', 'Special 特別護理'];
 
   useEffect(() => {
@@ -86,18 +113,21 @@ export default function App() {
     setIsModalOpen(true);
   };
 
-  const handleImageUpload = (e) => {
+  const handleImageUpload = async (e) => {
     const file = e.target.files?.[0];
     if (!file) return;
-    const previewUrl = URL.createObjectURL(file);
-    setScanPreview(previewUrl);
-    const reader = new FileReader();
-    reader.onloadend = () => {
-      const base64 = reader.result;
-      setImageBase64(base64);
-      setFormData(prev => ({ ...prev, imageUrl: base64 }));
-    };
-    reader.readAsDataURL(file);
+    setCompressing(true);
+    try {
+      const compressed = await compressImage(file, 800, 0.6);
+      setScanPreview(compressed);
+      setImageBase64(compressed);
+      setFormData(prev => ({ ...prev, imageUrl: compressed }));
+    } catch (err) {
+      console.error(err);
+      setAiError('圖片處理失敗');
+    } finally {
+      setCompressing(false);
+    }
   };
 
   const handleAiLookup = async () => {
@@ -203,7 +233,7 @@ export default function App() {
       setIsModalOpen(false);
     } catch (err) {
       console.error(err);
-      alert('儲存失敗');
+      alert('儲存失敗：' + (err.message || '請檢查圖片大小'));
     }
   };
 
@@ -454,10 +484,12 @@ export default function App() {
               <div className="p-3 bg-emerald-50 border border-emerald-200 rounded-2xl space-y-2">
                 <div className="flex items-center justify-between">
                   <span className="text-emerald-900 font-medium flex items-center gap-1"><Sparkles className="h-3.5 w-3.5" /> Grok AI</span>
-                  <button type="button" onClick={() => fileInputRef.current?.click()} className="flex items-center gap-1 text-[11px] bg-white border px-2.5 py-1 rounded-xl"><Camera className="h-3.5 w-3.5" />上傳圖片</button>
+                  <button type="button" onClick={() => fileInputRef.current?.click()} disabled={compressing} className="flex items-center gap-1 text-[11px] bg-white border px-2.5 py-1 rounded-xl disabled:opacity-50">
+                    <Camera className="h-3.5 w-3.5" />{compressing ? '壓縮中...' : '上傳圖片'}
+                  </button>
                   <input type="file" ref={fileInputRef} accept="image/*" onChange={handleImageUpload} className="hidden" />
                 </div>
-                {scanPreview && <div className="flex items-center gap-2"><img src={scanPreview} alt="" className="h-16 w-16 object-cover rounded-xl border" /><span className="text-[10px] text-stone-500">已載入圖片</span></div>}
+                {scanPreview && <div className="flex items-center gap-2"><img src={scanPreview} alt="" className="h-16 w-16 object-cover rounded-xl border" /><span className="text-[10px] text-stone-500">已壓縮</span></div>}
                 <button type="button" onClick={handleAiLookup} disabled={aiLoading} className="w-full py-1.5 bg-emerald-800 text-white rounded-xl text-xs font-medium flex items-center justify-center gap-1.5 disabled:opacity-50">
                   <Sparkles className="h-3.5 w-3.5" />{aiLoading ? '分析中...' : 'AI 智能填寫'}
                 </button>
