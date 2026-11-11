@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { 
   Sparkles, Plus, Search, Package, Trash2, Edit3, Sun, Moon, X, 
-  Camera, Tag, Cloud, ArrowUpDown, ChevronUp, ChevronDown
+  Camera, Tag, Cloud, ArrowUpDown, ChevronUp, ChevronDown, LayoutDashboard
 } from 'lucide-react';
 import { initializeApp } from 'firebase/app';
 import { getFirestore, collection, onSnapshot, addDoc, updateDoc, deleteDoc, doc } from 'firebase/firestore';
@@ -23,7 +23,7 @@ const storage = getStorage(app);
 export default function App() {
   const [items, setItems] = useState([]);
   const [loading, setLoading] = useState(true);
-  const [activeTab, setActiveTab] = useState('inventory');
+  const [activeTab, setActiveTab] = useState('dashboard');
   const [routineTime, setRoutineTime] = useState('AM');
   const [filterStatus, setFilterStatus] = useState('all');
   const [filterCategory, setFilterCategory] = useState('all');
@@ -47,13 +47,14 @@ export default function App() {
     name: '', brand: '', imageUrl: '', category: 'Serum 精華', price: '',
     size: '', purchaseLocation: '', purchaseDate: new Date().toISOString().split('T')[0],
     expiryDate: '', status: 'unopened', isMultiPack: false, totalQuantity: 1,
-    remainingQuantity: 1, unit: '塊', routineStage: 'AM/PM', notes: '', tagsInput: '', stepOrder: 99
+    remainingQuantity: 1, unit: '塊', routineStage: 'AM/PM', notes: '', tagsInput: '', 
+    stepOrder: 99, inRoutine: false
   };
 
   const [formData, setFormData] = useState(initialFormState);
   const presetTags = ['#敏感肌必備', '#空瓶回購', '#平價替代', '#抗衰老', '#急救修復', '#控油祛痘', '#美白提亮', '#保濕補水'];
   const presetLocations = ['專櫃', '莎莎', '卓悅', 'Sephora', '松本清', 'Donki', '官網', 'Olive Young', 'HKTVMall', 'Green Price'];
-  const categories = ['Cleanser 洗面', 'Toner 爽膚水', 'Serum 精華', 'Moisturizer 乳液面霜', 'Eye Cream 眼霜', 'Mask 面膜', 'Sunscreen 防曬', 'Hair 頭髮護理', 'Bodycare 身體護理', 'Special 特別護理'];
+  const categories = ['Cleanser 洗面', 'Toner 爽膚水', 'Serum 精華', 'Face Oil 護膚油', 'Moisturizer 乳液面霜', 'Eye Cream 眼霜', 'Mask 面膜', 'Sunscreen 防曬', 'Hair 頭髮護理', 'Bodycare 身體護理', 'Special 特別護理'];
 
   useEffect(() => {
     const unsubscribe = onSnapshot(collection(db, 'items'), (snapshot) => {
@@ -79,7 +80,7 @@ export default function App() {
   const handleOpenModal = (item = null) => {
     if (item) {
       setEditingId(item.id);
-      setFormData({ ...item, imageUrl: item.imageUrl || '', tagsInput: Array.isArray(item.tags) ? item.tags.join(' ') : (item.tags || '') });
+      setFormData({ ...item, imageUrl: item.imageUrl || '', tagsInput: Array.isArray(item.tags) ? item.tags.join(' ') : (item.tags || ''), inRoutine: item.inRoutine || false });
     } else {
       setEditingId(null);
       setFormData(initialFormState);
@@ -94,16 +95,11 @@ export default function App() {
   const handleImageCapture = (e) => {
     const file = e.target.files?.[0];
     if (!file) return;
-    
     setImageFile(file);
     const previewUrl = URL.createObjectURL(file);
     setScanPreview(previewUrl);
-    
-    // Convert to base64 for AI
     const reader = new FileReader();
-    reader.onloadend = () => {
-      setImageBase64(reader.result);
-    };
+    reader.onloadend = () => setImageBase64(reader.result);
     reader.readAsDataURL(file);
     setAiError('');
   };
@@ -120,7 +116,7 @@ export default function App() {
       let prompt = `請用繁體中文回應純 JSON，包含以下 key：
 - name: 產品名稱
 - brand: 品牌
-- category: 選自 ["Cleanser 洗面", "Toner 爽膚水", "Serum 精華", "Moisturizer 乳液面霜", "Eye Cream 眼霜", "Mask 面膜", "Sunscreen 防曬", "Hair 頭髮護理", "Bodycare 身體護理", "Special 特別護理"]
+- category: 選自 ["Cleanser 洗面", "Toner 爽膚水", "Serum 精華", "Face Oil 護膚油", "Moisturizer 乳液面霜", "Eye Cream 眼霜", "Mask 面膜", "Sunscreen 防曬", "Hair 頭髮護理", "Bodycare 身體護理", "Special 特別護理"]
 - routineStage: 選自 ["AM", "PM", "AM/PM", "Weekly"]
 - notes: 1-2句功效說明
 - tags: 2-3個 # 標籤陣列
@@ -136,10 +132,7 @@ export default function App() {
       const messages = [{ role: 'user', content: [] }];
 
       if (imageBase64) {
-        messages[0].content.push({
-          type: 'image_url',
-          image_url: { url: imageBase64 }
-        });
+        messages[0].content.push({ type: 'image_url', image_url: { url: imageBase64 } });
         prompt = `請辨識圖片上的護膚品資訊，並${prompt}`;
       }
 
@@ -147,15 +140,8 @@ export default function App() {
 
       const response = await fetch('https://api.x.ai/v1/chat/completions', {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${import.meta.env.VITE_GROK_API_KEY}`
-        },
-        body: JSON.stringify({
-          model: 'grok-4',
-          messages,
-          temperature: 0.3
-        })
+        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${import.meta.env.VITE_GROK_API_KEY}` },
+        body: JSON.stringify({ model: 'grok-4', messages, temperature: 0.3 })
       });
 
       const data = await response.json();
@@ -189,29 +175,23 @@ export default function App() {
     const filename = `products/${Date.now()}_${file.name.replace(/[^a-zA-Z0-9.]/g, '_')}`;
     const storageRef = ref(storage, filename);
     const snapshot = await uploadBytes(storageRef, file);
-    const url = await getDownloadURL(snapshot.ref);
-    return url;
+    return await getDownloadURL(snapshot.ref);
   };
 
   const handleSubmit = async (e) => {
     e.preventDefault();
     if (!formData.name || !formData.expiryDate) return;
-    
     setUploading(true);
     setAiError('');
-    
+
     try {
       let imageUrl = formData.imageUrl;
-      
-      // Upload image to Firebase Storage if there's a new file
       if (imageFile) {
         try {
           imageUrl = await uploadImageToStorage(imageFile);
         } catch (uploadErr) {
           console.error('Upload error:', uploadErr);
-          // Continue without image if upload fails
           imageUrl = '';
-          setAiError('圖片上傳失敗，其他資料已儲存');
         }
       }
 
@@ -226,6 +206,7 @@ export default function App() {
         price: Number(formData.price) || 0,
         finishedDate: finalFinishedDate,
         tags: formattedTags,
+        inRoutine: formData.inRoutine || false,
         updatedAt: new Date().toISOString()
       };
       delete itemData.tagsInput;
@@ -235,14 +216,14 @@ export default function App() {
       } else {
         await addDoc(collection(db, 'items'), { ...itemData, createdAt: new Date().toISOString() });
       }
-      
+
       setIsModalOpen(false);
       setImageFile(null);
       setScanPreview(null);
       setImageBase64(null);
     } catch (err) {
       console.error(err);
-      setAiError('儲存失敗：' + (err.message || '請檢查網絡'));
+      setAiError('儲存失敗');
     } finally {
       setUploading(false);
     }
@@ -282,14 +263,18 @@ export default function App() {
 
     const current = currentItems[index];
     const target = currentItems[newIndex];
-    const currentOrder = current.stepOrder || index;
-    const targetOrder = target.stepOrder || newIndex;
+    
+    // Swap stepOrder values
+    const currentOrder = current.stepOrder ?? index;
+    const targetOrder = target.stepOrder ?? newIndex;
 
     try {
-      await updateDoc(doc(db, 'items', current.id), { stepOrder: targetOrder });
-      await updateDoc(doc(db, 'items', target.id), { stepOrder: currentOrder });
+      await Promise.all([
+        updateDoc(doc(db, 'items', current.id), { stepOrder: targetOrder }),
+        updateDoc(doc(db, 'items', target.id), { stepOrder: currentOrder })
+      ]);
     } catch (err) {
-      console.error(err);
+      console.error('Move error:', err);
     }
   };
 
@@ -307,6 +292,19 @@ export default function App() {
     const set = new Set();
     items.forEach(item => { if (Array.isArray(item.tags)) item.tags.forEach(t => set.add(t)); });
     return Array.from(set);
+  }, [items]);
+
+  const categoryStats = useMemo(() => {
+    const stats = {};
+    categories.forEach(cat => { stats[cat] = { total: 0, inUse: 0, unopened: 0 }; });
+    items.forEach(item => {
+      if (stats[item.category]) {
+        stats[item.category].total += item.isMultiPack ? (item.remainingQuantity || 0) : 1;
+        if (item.status === 'in_use') stats[item.category].inUse += 1;
+        if (item.status === 'unopened') stats[item.category].unopened += 1;
+      }
+    });
+    return stats;
   }, [items]);
 
   const filteredItems = useMemo(() => {
@@ -329,8 +327,8 @@ export default function App() {
 
   const routineItems = useMemo(() => {
     return items
-      .filter(item => item.status === 'in_use' && (item.routineStage === routineTime || item.routineStage === 'AM/PM'))
-      .sort((a, b) => (a.stepOrder || 99) - (b.stepOrder || 99));
+      .filter(item => item.inRoutine && item.status === 'in_use' && (item.routineStage === routineTime || item.routineStage === 'AM/PM'))
+      .sort((a, b) => (a.stepOrder ?? 99) - (b.stepOrder ?? 99));
   }, [items, routineTime]);
 
   if (loading) {
@@ -350,8 +348,9 @@ export default function App() {
           </div>
           <div className="flex items-center gap-2">
             <div className="flex bg-stone-200/50 p-1 rounded-2xl">
-              <button onClick={() => setActiveTab('inventory')} className={`px-3.5 py-1.5 rounded-xl text-xs font-medium ${activeTab === 'inventory' ? 'bg-white shadow-sm' : 'text-stone-600'}`}>庫存</button>
-              <button onClick={() => setActiveTab('routine')} className={`px-3.5 py-1.5 rounded-xl text-xs font-medium ${activeTab === 'routine' ? 'bg-white shadow-sm' : 'text-stone-600'}`}>Routine</button>
+              <button onClick={() => setActiveTab('dashboard')} className={`px-3 py-1.5 rounded-xl text-xs font-medium ${activeTab === 'dashboard' ? 'bg-white shadow-sm' : 'text-stone-600'}`}>總覽</button>
+              <button onClick={() => setActiveTab('inventory')} className={`px-3 py-1.5 rounded-xl text-xs font-medium ${activeTab === 'inventory' ? 'bg-white shadow-sm' : 'text-stone-600'}`}>庫存</button>
+              <button onClick={() => setActiveTab('routine')} className={`px-3 py-1.5 rounded-xl text-xs font-medium ${activeTab === 'routine' ? 'bg-white shadow-sm' : 'text-stone-600'}`}>Routine</button>
             </div>
             <div className="flex items-center gap-1 text-xs text-emerald-700 bg-emerald-50 px-3 py-2 rounded-2xl"><Cloud className="h-4 w-4" />已同步</div>
             <button onClick={() => handleOpenModal()} className="flex items-center gap-1 bg-stone-900 text-white px-3.5 py-2 rounded-2xl text-xs"><Plus className="h-4 w-4" />新增</button>
@@ -360,6 +359,38 @@ export default function App() {
       </header>
 
       <main className="max-w-7xl mx-auto px-4 md:px-8 py-6">
+        {activeTab === 'dashboard' && (
+          <div className="space-y-6">
+            <div className="flex items-center gap-2 mb-4">
+              <LayoutDashboard className="h-5 w-5 text-emerald-800" />
+              <h2 className="text-lg font-medium">庫存總覽</h2>
+            </div>
+            <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
+              {categories.map(cat => {
+                const stat = categoryStats[cat] || { total: 0, inUse: 0, unopened: 0 };
+                return (
+                  <div key={cat} onClick={() => { setFilterCategory(cat); setActiveTab('inventory'); }} className="bg-white p-4 rounded-2xl border border-stone-200/60 shadow-sm hover:border-emerald-800/40 cursor-pointer transition-all">
+                    <div className="text-xs text-stone-500 mb-1">{cat}</div>
+                    <div className="text-2xl font-semibold text-stone-900">{stat.total}</div>
+                    <div className="text-[10px] text-stone-400 mt-1">
+                      <span className="text-emerald-700">{stat.inUse} 使用中</span>
+                      {stat.unopened > 0 && <span className="ml-2 text-amber-600">{stat.unopened} 未開封</span>}
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+            <div className="bg-white p-4 rounded-2xl border border-stone-200/60">
+              <div className="text-sm font-medium text-stone-700 mb-2">總計</div>
+              <div className="flex gap-6 text-sm">
+                <div><span className="text-stone-500">總產品：</span><span className="font-semibold">{items.length}</span></div>
+                <div><span className="text-stone-500">使用中：</span><span className="font-semibold text-emerald-700">{items.filter(i => i.status === 'in_use').length}</span></div>
+                <div><span className="text-stone-500">未開封：</span><span className="font-semibold text-amber-600">{items.filter(i => i.status === 'unopened').length}</span></div>
+              </div>
+            </div>
+          </div>
+        )}
+
         {activeTab === 'inventory' && (
           <div className="space-y-6">
             <div className="bg-white p-4 rounded-3xl border border-stone-200/60 shadow-sm space-y-3">
@@ -400,12 +431,13 @@ export default function App() {
                       <th className="py-3 px-4">狀態</th>
                       <th className="py-3 px-4">數量</th>
                       <th className="py-3 px-4"><button onClick={() => { setSortField('expiryDate'); setSortOrder(p => p === 'asc' ? 'desc' : 'asc'); }} className="flex items-center gap-1">到期日 <ArrowUpDown className="h-3 w-3" /></button></th>
+                      <th className="py-3 px-4 text-center">Routine</th>
                       <th className="py-3 px-4 text-right">操作</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y">
                     {filteredItems.length === 0 ? (
-                      <tr><td colSpan="6" className="py-12 text-center text-stone-400"><Package className="h-8 w-8 mx-auto mb-2 opacity-40" /><p>沒有找到護膚品</p></td></tr>
+                      <tr><td colSpan="7" className="py-12 text-center text-stone-400"><Package className="h-8 w-8 mx-auto mb-2 opacity-40" /><p>沒有找到護膚品</p></td></tr>
                     ) : filteredItems.map(item => {
                       const expiry = getExpiryDetails(item.expiryDate);
                       return (
@@ -433,6 +465,9 @@ export default function App() {
                             <div>{item.expiryDate || '-'}</div>
                             {expiry.label && <span className={`text-[10px] ${expiry.status === 'expired' ? 'text-red-600' : expiry.status === 'warning' ? 'text-amber-600' : 'text-emerald-700'}`}>{expiry.label}</span>}
                           </td>
+                          <td className="py-3 px-4 text-center">
+                            {item.inRoutine && <span className="text-emerald-600">✓</span>}
+                          </td>
                           <td className="py-3 px-4 text-right">
                             <button onClick={() => handleOpenModal(item)} className="p-1.5 text-stone-400 hover:text-stone-700"><Edit3 className="h-4 w-4" /></button>
                             <button onClick={() => handleDelete(item.id)} className="p-1.5 text-stone-400 hover:text-red-600"><Trash2 className="h-4 w-4" /></button>
@@ -450,7 +485,7 @@ export default function App() {
         {activeTab === 'routine' && (
           <div className="max-w-4xl mx-auto space-y-6">
             <div className="flex items-center justify-between bg-white p-4 rounded-3xl border shadow-sm">
-              <div><h2 className="text-lg font-medium">每日護膚流程</h2><p className="text-xs text-stone-500">使用中護膚品 · 可調整順序</p></div>
+              <div><h2 className="text-lg font-medium">每日護膚流程</h2><p className="text-xs text-stone-500">已勾選加入 Routine 嘅產品</p></div>
               <div className="flex bg-stone-100 p-1 rounded-2xl">
                 <button onClick={() => setRoutineTime('AM')} className={`flex items-center gap-1.5 px-4 py-2 rounded-xl text-xs ${routineTime === 'AM' ? 'bg-amber-100 text-amber-900' : ''}`}><Sun className="h-4 w-4" />早晨</button>
                 <button onClick={() => setRoutineTime('PM')} className={`flex items-center gap-1.5 px-4 py-2 rounded-xl text-xs ${routineTime === 'PM' ? 'bg-indigo-100 text-indigo-950' : ''}`}><Moon className="h-4 w-4" />晚間</button>
@@ -458,7 +493,11 @@ export default function App() {
             </div>
             <div className="space-y-3">
               {routineItems.length === 0 ? (
-                <div className="bg-white p-12 text-center rounded-3xl border text-stone-400"><Sun className="h-8 w-8 mx-auto mb-2 opacity-40" /><p>尚無使用中護膚品</p></div>
+                <div className="bg-white p-12 text-center rounded-3xl border text-stone-400">
+                  <Sun className="h-8 w-8 mx-auto mb-2 opacity-40" />
+                  <p>尚未有產品加入 Routine</p>
+                  <p className="text-xs mt-1">編輯產品時勾選「加入 Routine」</p>
+                </div>
               ) : routineItems.map((item, index) => (
                 <div key={item.id} className="p-4 rounded-3xl border bg-white shadow-sm flex items-center justify-between hover:border-emerald-800/40">
                   <div className="flex items-center space-x-4 cursor-pointer" onClick={() => setSelectedProduct(item)}>
@@ -474,8 +513,8 @@ export default function App() {
                     </div>
                   </div>
                   <div className="flex items-center gap-1">
-                    <button onClick={() => moveRoutineItem(item.id, 'up')} disabled={index === 0} className="p-1.5 text-stone-400 hover:text-stone-700 disabled:opacity-30"><ChevronUp className="h-4 w-4" /></button>
-                    <button onClick={() => moveRoutineItem(item.id, 'down')} disabled={index === routineItems.length - 1} className="p-1.5 text-stone-400 hover:text-stone-700 disabled:opacity-30"><ChevronDown className="h-4 w-4" /></button>
+                    <button onClick={() => moveRoutineItem(item.id, 'up')} disabled={index === 0} className="p-2 text-stone-400 hover:text-stone-700 hover:bg-stone-100 rounded-lg disabled:opacity-30"><ChevronUp className="h-5 w-5" /></button>
+                    <button onClick={() => moveRoutineItem(item.id, 'down')} disabled={index === routineItems.length - 1} className="p-2 text-stone-400 hover:text-stone-700 hover:bg-stone-100 rounded-lg disabled:opacity-30"><ChevronDown className="h-5 w-5" /></button>
                   </div>
                 </div>
               ))}
@@ -521,6 +560,14 @@ export default function App() {
               <div className="grid grid-cols-2 gap-3">
                 <div><label className="block text-stone-600 mb-1">類別</label><select name="category" value={formData.category} onChange={handleInputChange} className="w-full px-3 py-2 border rounded-xl">{categories.map(c => <option key={c} value={c}>{c}</option>)}</select></div>
                 <div><label className="block text-stone-600 mb-1">時段</label><select name="routineStage" value={formData.routineStage} onChange={handleInputChange} className="w-full px-3 py-2 border rounded-xl"><option value="AM">早晨</option><option value="PM">晚間</option><option value="AM/PM">日夜</option><option value="Weekly">每週</option></select></div>
+              </div>
+
+              <div className="p-3 bg-emerald-50/50 rounded-2xl border border-emerald-100">
+                <label className="flex items-center gap-2 font-medium text-emerald-900 cursor-pointer">
+                  <input type="checkbox" name="inRoutine" checked={formData.inRoutine || false} onChange={handleInputChange} className="rounded text-emerald-800" />
+                  加入 Routine
+                </label>
+                <p className="text-[10px] text-emerald-700 mt-1 ml-5">勾選後會顯示喺護膚流程</p>
               </div>
 
               <div className="grid grid-cols-2 gap-3">
@@ -574,6 +621,7 @@ export default function App() {
               {selectedProduct.imageUrl && <img src={selectedProduct.imageUrl} alt="" className="w-full h-48 object-cover rounded-2xl" />}
               <h3 className="text-base font-bold">{selectedProduct.name}</h3>
               <p className="text-stone-500">品牌：{selectedProduct.brand || '-'}</p>
+              {selectedProduct.inRoutine && <span className="text-[10px] text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded">已加入 Routine</span>}
               {Array.isArray(selectedProduct.tags) && <div className="flex flex-wrap gap-1">{selectedProduct.tags.map(t => <span key={t} className="text-[10px] text-emerald-800 bg-emerald-50 px-2 py-0.5 rounded">{t}</span>)}</div>}
               <div className="grid grid-cols-2 gap-2">
                 <div className="p-2.5 bg-stone-50 rounded-xl"><span className="text-[10px] text-stone-400 block">容量</span>{selectedProduct.size || '-'}</div>
