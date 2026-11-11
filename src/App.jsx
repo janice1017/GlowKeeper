@@ -299,7 +299,8 @@ export default function App() {
     categories.forEach(cat => { stats[cat] = { total: 0, inUse: 0, unopened: 0 }; });
     items.forEach(item => {
       if (stats[item.category]) {
-        stats[item.category].total += item.isMultiPack ? (item.remainingQuantity || 0) : 1;
+        const qty = item.isMultiPack ? (Number(item.remainingQuantity) || 0) : 1;
+        stats[item.category].total += qty;
         if (item.status === 'in_use') stats[item.category].inUse += 1;
         if (item.status === 'unopened') stats[item.category].unopened += 1;
       }
