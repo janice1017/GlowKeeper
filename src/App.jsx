@@ -261,18 +261,17 @@ export default function App() {
     const newIndex = direction === 'up' ? index - 1 : index + 1;
     if (newIndex < 0 || newIndex >= currentItems.length) return;
 
-    const current = currentItems[index];
-    const target = currentItems[newIndex];
-    
-    // Swap stepOrder values
-    const currentOrder = current.stepOrder ?? index;
-    const targetOrder = target.stepOrder ?? newIndex;
+    // Swap in array
+    const [moved] = currentItems.splice(index, 1);
+    currentItems.splice(newIndex, 0, moved);
 
+    // Reassign sequential stepOrder
     try {
-      await Promise.all([
-        updateDoc(doc(db, 'items', current.id), { stepOrder: targetOrder }),
-        updateDoc(doc(db, 'items', target.id), { stepOrder: currentOrder })
-      ]);
+      await Promise.all(
+        currentItems.map((item, i) => 
+          updateDoc(doc(db, 'items', item.id), { stepOrder: i })
+        )
+      );
     } catch (err) {
       console.error('Move error:', err);
     }
@@ -335,7 +334,7 @@ export default function App() {
   const routineItems = useMemo(() => {
     return items
       .filter(item => item.inRoutine && item.status === 'in_use' && (item.routineStage === routineTime || item.routineStage === 'AM/PM'))
-      .sort((a, b) => (a.stepOrder ?? 99) - (b.stepOrder ?? 99));
+      .sort((a, b) => (a.stepOrder ?? 999) - (b.stepOrder ?? 999));
   }, [items, routineTime]);
 
   if (loading) {
