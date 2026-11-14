@@ -624,15 +624,47 @@ export default function App() {
           <div className="bg-white w-full max-w-md rounded-3xl shadow-xl overflow-hidden">
             <div className="px-6 py-4 border-b flex justify-between items-center bg-stone-50">
               <span className="px-2.5 py-1 bg-emerald-50 text-emerald-800 rounded-xl text-xs">{selectedProduct.category}</span>
-              <button onClick={() => setSelectedProduct(null)}><X className="h-5 w-5" /></button>
+              <button type="button" onClick={() => setSelectedProduct(null)}><X className="h-5 w-5" /></button>
             </div>
             <div className="p-6 space-y-4 text-xs">
-              {selectedProduct.imageUrl && <img src={selectedProduct.imageUrl} alt="" className="w-full h-48 object-cover rounded-2xl" />}
+              {selectedProduct.imageUrl && (
+                <img src={selectedProduct.imageUrl} alt="" className="w-full h-48 object-cover rounded-2xl" />
+              )}
               <h3 className="text-base font-bold">{selectedProduct.name}</h3>
               <p className="text-stone-500">品牌：{selectedProduct.brand || '-'}</p>
-              {selectedProduct.inRoutine && <span className="text-[10px] text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded">已加入 Routine</span>}
-              {Array.isArray(selectedProduct.tags) && <div className="flex flex-wrap gap-1">{selectedProduct.tags.map(t => <span key={t} className="text-[10px] text-emerald-800 bg-emerald-50 px-2 py-0.5 rounded">{t}</span>)}</div>}
+              {selectedProduct.inRoutine && (
+                <span className="text-[10px] text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded">已加入 Routine</span>
+              )}
+              {Array.isArray(selectedProduct.tags) && (
+                <div className="flex flex-wrap gap-1">
+                  {selectedProduct.tags.map(t => (
+                    <span key={t} className="text-[10px] text-emerald-800 bg-emerald-50 px-2 py-0.5 rounded">{t}</span>
+                  ))}
+                </div>
+              )}
               <div className="grid grid-cols-2 gap-2">
-                <div className="p-2.5 bg-stone-50 rounded-xl"><span className="text-[10px] text-stone-400 block">容量</span>{selectedProduct.size || '-'}</div>
-                <div className="p-2.5 bg-stone-50 rounded-xl"><span className="text-[10px] text-stone-400 block">價格</span>{selectedProduct.price ? `$${selectedProduct.price}` : '-'}</div>
+                <div className="p-2.5 bg-stone-50 rounded-xl">
+                  <span className="text-[10px] text-stone-400 block">容量</span>
+                  {selectedProduct.size || '-'}
+                </div>
+                <div className="p-2.5 bg-stone-50 rounded-xl">
+                  <span className="text-[10px] text-stone-400 block">價格</span>
+                  {selectedProduct.price ? `$${selectedProduct.price}` : '-'}
+                </div>
               </div>
+              {selectedProduct.notes && (
+                <div className="p-3 bg-stone-50 rounded-xl">
+                  <span className="text-[10px] text-stone-400 block">備註</span>
+                  {selectedProduct.notes}
+                </div>
+              )}
+              <button type="button" onClick={() => { const t = selectedProduct; setSelectedProduct(null); handleOpenModal(t); }} className="w-full py-2.5 bg-stone-900 text-white rounded-2xl text-xs flex items-center justify-center gap-1.5">
+                <Edit3 className="h-3.5 w-3.5" />編輯
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
