@@ -296,13 +296,19 @@ export default function App() {
 
   const categoryStats = useMemo(() => {
     const stats = {};
-    categories.forEach(cat => { stats[cat] = { total: 0, inUse: 0, unopened: 0 }; });
+    categories.forEach(cat => { stats[cat] = { total: 0, inUse: 0, unopened: 0, finished: 0 }; });
     items.forEach(item => {
       if (stats[item.category]) {
         const qty = item.isMultiPack ? (Number(item.remainingQuantity) || 0) : 1;
-        stats[item.category].total += qty;
-        if (item.status === 'in_use') stats[item.category].inUse += 1;
-        if (item.status === 'unopened') stats[item.category].unopened += 1;
+        if (item.status === 'in_use') {
+          stats[item.category].inUse += 1;
+          stats[item.category].total += qty;
+        } else if (item.status === 'unopened') {
+          stats[item.category].unopened += 1;
+          stats[item.category].total += qty;
+        } else if (item.status === 'finished') {
+          stats[item.category].finished += 1;
+        }
       }
     });
     return stats;
@@ -368,14 +374,15 @@ export default function App() {
             </div>
             <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
               {categories.map(cat => {
-                const stat = categoryStats[cat] || { total: 0, inUse: 0, unopened: 0 };
+                const stat = categoryStats[cat] || { total: 0, inUse: 0, unopened: 0, finished: 0 };
                 return (
                   <div key={cat} onClick={() => { setFilterCategory(cat); setActiveTab('inventory'); }} className="bg-white p-4 rounded-2xl border border-stone-200/60 shadow-sm hover:border-emerald-800/40 cursor-pointer transition-all">
                     <div className="text-xs text-stone-500 mb-1">{cat}</div>
                     <div className="text-2xl font-semibold text-stone-900">{stat.total}</div>
-                    <div className="text-[10px] text-stone-400 mt-1">
-                      <span className="text-emerald-700">{stat.inUse} 使用中</span>
-                      {stat.unopened > 0 && <span className="ml-2 text-amber-600">{stat.unopened} 未開封</span>}
+                    <div className="text-[10px] text-stone-400 mt-1 space-y-0.5">
+                      <div><span className="text-emerald-700">{stat.inUse} 使用中</span></div>
+                      <div><span className="text-amber-600">{stat.unopened} 未開封</span></div>
+                      {stat.finished > 0 && <div><span className="text-stone-400">{stat.finished} 已用完</span></div>}
                     </div>
                   </div>
                 );
@@ -383,10 +390,11 @@ export default function App() {
             </div>
             <div className="bg-white p-4 rounded-2xl border border-stone-200/60">
               <div className="text-sm font-medium text-stone-700 mb-2">總計</div>
-              <div className="flex gap-6 text-sm">
+              <div className="flex flex-wrap gap-4 text-sm">
                 <div><span className="text-stone-500">總產品：</span><span className="font-semibold">{items.length}</span></div>
                 <div><span className="text-stone-500">使用中：</span><span className="font-semibold text-emerald-700">{items.filter(i => i.status === 'in_use').length}</span></div>
                 <div><span className="text-stone-500">未開封：</span><span className="font-semibold text-amber-600">{items.filter(i => i.status === 'unopened').length}</span></div>
+                <div><span className="text-stone-500">已用完：</span><span className="font-semibold text-stone-400">{items.filter(i => i.status === 'finished').length}</span></div>
               </div>
             </div>
           </div>
@@ -628,12 +636,3 @@ export default function App() {
                 <div className="p-2.5 bg-stone-50 rounded-xl"><span className="text-[10px] text-stone-400 block">容量</span>{selectedProduct.size || '-'}</div>
                 <div className="p-2.5 bg-stone-50 rounded-xl"><span className="text-[10px] text-stone-400 block">價格</span>{selectedProduct.price ? `$${selectedProduct.price}` : '-'}</div>
               </div>
-              {selectedProduct.notes && <div className="p-3 bg-stone-50 rounded-xl"><span className="text-[10px] text-stone-400 block">備註</span>{selectedProduct.notes}</div>}
-              <button onClick={() => { const t = selectedProduct; setSelectedProduct(null); handleOpenModal(t); }} className="w-full py-2.5 bg-stone-900 text-white rounded-2xl text-xs flex items-center justify-center gap-1.5"><Edit3 className="h-3.5 w-3.5" />編輯</button>
-            </div>
-          </div>
-        </div>
-      )}
-    </div>
-  );
-}
